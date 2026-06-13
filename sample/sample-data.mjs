@@ -68,9 +68,13 @@ const bracketDemo = {
   'r32-16': { a: B('Costa de Marfil', 'CIV'),b: B('Arabia Saudí', 'KSA') },
 };
 
+// Finalistas de ejemplo (solo para poder probar la apuesta de la Final en la demo).
+const finalDemo = { home: B('Argentina', 'ARG'), away: B('Francia', 'FRA') };
+
 export const SAMPLE = {
   source: 'datos-de-ejemplo',
   fetchedAt: '2026-06-13T16:00:00Z',
   matches,
   bracketDemo,
+  finalDemo,
 };

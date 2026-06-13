@@ -11,6 +11,14 @@ Quiniela del Mundial 2026 para jugar con amigos. **Servidor Node sin dependencia
 - **Eliminatorias (llave):** desde 1/16 hasta la final, formato de **cuadro interactivo**; eliges quién avanza en cada cruce. Se envía **una sola vez**. Se abre cuando terminan los grupos y se conocen los 32 equipos.
 - **Resultados** desde football-data.org (en el servidor).
 - **Puntos:** grupos = 3 exacto / 1 ganador-empate / 1 el 1X2. Llave = 2 por cruce acertado + 5 por semifinalista (top 4). Todo configurable en `config.mjs`.
+- **Banderas** de cada selección automáticas (de la API o de flagcdn.com).
+- **MVP / Jugador del torneo:** sección de apuesta que se abre con la fase eliminatoria; cada usuario elige 1 de los 10 candidatos. +10 pts por acertar.
+- **La Final:** apuesta especial que se abre al conocerse los finalistas: **marcador exacto + 1X2** (puede ser empate) y **campeón** del Mundial aparte (cuenta prórroga/penaltis vía el campo `winner` de la API). Puntos en `config.mjs` → `scoring.final`.
+
+### Configurar el MVP (`config.mjs`, bloque `mvp`)
+- `candidates`: la lista de los 10 jugadores destacados (nombre, equipo y `code` para la bandera). Edítala a tu gusto.
+- `actual`: pon aquí el `id` del jugador ganador (p.ej. `'p2'`) cuando se conozca el MVP, y reinicia el servidor para repartir los puntos.
+- `points`: puntos por acertar el MVP.
 
 ## 🚀 Arrancar (Windows / PowerShell)
 

@@ -13,6 +13,7 @@ import * as Auth from './lib/auth.mjs';
 import * as Data from './lib/data.mjs';
 import * as Score from './lib/scoring.mjs';
 import { buildTree, validateBracket } from './lib/bracket.mjs';
+import { flagUrl, flagUrlFromCode } from './lib/flags.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, 'public');
@@ -44,11 +45,18 @@ function currentUser(req) {
 }
 
 // --------------------------------------------------------- estado/API ------
+const wf = (t) => t ? { ...t, flag: flagUrl(t) } : t; // añade la bandera al equipo
+function enrichStandings(st) {
+  const out = {};
+  for (const g of Object.keys(st)) out[g] = st[g].map(r => ({ ...r, team: wf(r.team) }));
+  return out;
+}
+
 function publicMatch(m, picks, submitted) {
   const out = {
     id: m.id, group: m.group, matchday: m.matchday, utcDate: m.utcDate,
     status: m.status, state: Data.matchState(m),
-    home: m.home, away: m.away, score: m.score || null,
+    home: wf(m.home), away: wf(m.away), score: m.score || null,
   };
   if (submitted && picks[m.id]) out.yourPred = picks[m.id];
   if (submitted && Data.isFinished(m)) out.points = Score.groupPointsFor(picks[m.id], m);
@@ -59,6 +67,8 @@ function buildState(user) {
   const data = Data.getData();
   const groupPred = db.predictions[user.username]?.group || {};
   const bracketPred = db.predictions[user.username]?.bracket || {};
+  const mvpPred = db.predictions[user.username]?.mvp || {};
+  const finalPred = db.predictions[user.username]?.final || {};
   const gPicks = groupPred.picks || {};
 
   // --- Grupos ---
@@ -71,7 +81,10 @@ function buildState(user) {
   const win = Data.bracketWindow();
   const tree = buildTree();
   const r32Teams = Data.resolveR32Teams();
-  tree.r32.forEach(n => { n.teams = r32Teams[n.id] || { a: { label: n.a }, b: { label: n.b } }; });
+  tree.r32.forEach(n => {
+    const t = r32Teams[n.id] || { a: { label: n.a }, b: { label: n.b } };
+    n.teams = { a: wf(t.a), b: wf(t.b) };
+  });
   const bracketOpen = win.open && !bracketPred.submitted;
 
   return {
@@ -87,7 +100,7 @@ function buildState(user) {
       submittedAt: groupPred.at || null,
       upcomingIds: upcoming.map(m => m.id),
       matches: allGroup.map(m => publicMatch(m, gPicks, !!groupPred.submitted)),
-      standings: Data.computeStandings(),
+      standings: enrichStandings(Data.computeStandings()),
     },
     bracket: {
       open: bracketOpen,
@@ -98,6 +111,29 @@ function buildState(user) {
       yourPicks: bracketPred.picks || {},
       actualReached: Data.actualReached(),
     },
+    mvp: {
+      open: win.open && !mvpPred.submitted,
+      window: win,
+      submitted: !!mvpPred.submitted,
+      submittedAt: mvpPred.at || null,
+      yourPick: mvpPred.playerId || null,
+      actual: CONFIG.mvp.actual || null,
+      points: CONFIG.mvp.points,
+      candidates: CONFIG.mvp.candidates.map(p => ({ ...p, flag: flagUrlFromCode(p.code) })),
+    },
+    final: (() => {
+      const fw = Data.finalWindow();
+      return {
+        open: fw.open && !finalPred.submitted,
+        window: { teamsKnown: fw.teamsKnown, passed: !!fw.passed },
+        submitted: !!finalPred.submitted,
+        submittedAt: finalPred.at || null,
+        teams: fw.teams ? { home: wf(fw.teams.home), away: wf(fw.teams.away), utcDate: fw.teams.utcDate } : null,
+        your: finalPred.submitted ? { score: finalPred.score, champion: finalPred.champion } : null,
+        actual: Data.actualFinal(),
+        rules: CONFIG.scoring.final,
+      };
+    })(),
     ranking: Score.ranking(),
   };
 }
@@ -184,6 +220,39 @@ async function handleApi(req, res, pathname) {
     if (!v.ok) return sendJSON(res, 400, { error: v.error });
 
     pred.bracket = { submitted: true, at: new Date().toISOString(), picks };
+    saveDB();
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  // --- Enviar apuesta de MVP (una sola vez) ---
+  if (pathname === '/api/mvp' && method === 'POST') {
+    const b = await readBody(req);
+    const win = Data.bracketWindow();
+    const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
+    if (!win.open) return sendJSON(res, 403, { error: 'La apuesta de MVP aún no está abierta.' });
+    if (pred.mvp && pred.mvp.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu apuesta de MVP.' });
+    const valid = CONFIG.mvp.candidates.some(p => p.id === b.playerId);
+    if (!valid) return sendJSON(res, 400, { error: 'Jugador no válido.' });
+    pred.mvp = { submitted: true, at: new Date().toISOString(), playerId: b.playerId };
+    saveDB();
+    return sendJSON(res, 200, { ok: true });
+  }
+
+  // --- Enviar apuesta de la Final (una sola vez) ---
+  if (pathname === '/api/final' && method === 'POST') {
+    const b = await readBody(req);
+    const fw = Data.finalWindow();
+    const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
+    if (!fw.open) return sendJSON(res, 403, { error: 'La apuesta de la final aún no está disponible.' });
+    if (pred.final && pred.final.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu apuesta de la final.' });
+    const sc = b.score || {};
+    const h = Number(sc.home), a = Number(sc.away);
+    if (!Number.isInteger(h) || !Number.isInteger(a) || h < 0 || a < 0 || h > 99 || a > 99)
+      return sendJSON(res, 400, { error: 'Marcador de la final no válido (0-99).' });
+    const champ = b.champion;
+    const validChamp = fw.teams && (champ === fw.teams.home.code || champ === fw.teams.away.code);
+    if (!validChamp) return sendJSON(res, 400, { error: 'Elige el campeón entre los dos finalistas.' });
+    pred.final = { submitted: true, at: new Date().toISOString(), score: { home: h, away: a }, champion: champ };
     saveDB();
     return sendJSON(res, 200, { ok: true });
   }

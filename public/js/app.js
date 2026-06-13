@@ -9,7 +9,7 @@
     { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
   let STATE = null, ME = null;
-  const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null };
+  const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null, mvpPick: null, finalChamp: null, finalScore: {} };
 
   async function api(path, opts = {}) {
     const r = await fetch('/api' + path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -47,13 +47,15 @@
   // ------------------------------------------------------- App shell -------
   function render() {
     const s = STATE;
-    const nav = [['ranking', '🏆 Clasificación'], ['grupos', '📝 Grupos'], ['llave', '🗝️ Llave'], ['cuenta', '👤 Cuenta']];
+    const nav = [['ranking', '🏆 Clasificación'], ['grupos', '📝 Grupos'], ['llave', '🗝️ Llave'], ['final', '🏆 Final'], ['mvp', '⭐ MVP'], ['cuenta', '👤 Cuenta']];
     if (ME.isAdmin) nav.push(['admin', '⚙️ Admin']);
     const navHtml = nav.map(([k, l]) => `<button class="nav-btn ${ui.tab === k ? 'active' : ''}" data-action="tab" data-tab="${k}">${l}</button>`).join('');
     let content = '';
     if (ui.tab === 'ranking') content = renderRanking();
     else if (ui.tab === 'grupos') content = renderGroups();
     else if (ui.tab === 'llave') content = renderBracket();
+    else if (ui.tab === 'final') content = renderFinal();
+    else if (ui.tab === 'mvp') content = renderMvp();
     else if (ui.tab === 'cuenta') content = renderAccount();
     else if (ui.tab === 'admin') content = renderAdmin();
     const src = s.source === 'datos-de-ejemplo' ? '🟡 Datos de ejemplo' : '🟢 ' + esc(s.source);
@@ -83,15 +85,20 @@
       ${rows.map(r => `<tr class="${r.username === ME.username ? 'me' : ''}">
         <td class="rank">${medal(r.rank)}</td>
         <td>${esc(r.name)}${r.username === ME.username ? ' <span class="youtag">tú</span>' : ''}
-          <div class="sub">exactos ${r.group.exactHits} · 1X2 ${r.group.signHits} · llave aciertos ${r.bracket.correct} · top4 ${r.bracket.top4}</div></td>
+          <div class="sub">exactos ${r.group.exactHits} · 1X2 ${r.group.signHits} · llave ${r.bracket.correct} · top4 ${r.bracket.top4} · final ${r.final.points} · MVP ${r.mvp.points}${r.mvp.hit ? ' ⭐' : ''}</div></td>
         <td class="pts-cell">${r.total}</td><td>${r.group.combined}</td><td>${r.bracket.points}</td></tr>`).join('')}
       </tbody></table>`;
   }
 
   // --------------------------------------------------------- Grupos --------
+  function flagImg(url, cls = 'flag') { return url ? `<img class="${cls}" src="${esc(url)}" alt="" loading="lazy">` : ''; }
   function teamCell(team, side) {
     const name = team.code ? team.name : (team.label || '—');
-    return `<div class="team ${side}"><span class="tname">${esc(name)}</span><span class="tcode">${esc(team.code || '')}</span></div>`;
+    const flag = flagImg(team.flag);
+    const info = `<div class="tinfo"><span class="tname">${esc(name)}</span><span class="tcode">${esc(team.code || '')}</span></div>`;
+    return side === 'home'
+      ? `<div class="team home">${info}${flag}</div>`
+      : `<div class="team away">${flag}${info}</div>`;
   }
   function byGroup(matches) {
     const g = {}; matches.forEach(m => { (g[m.group || '?'] = g[m.group || '?'] || []).push(m); }); return g;
@@ -103,7 +110,7 @@
       <div class="standings-grid">${keys.map(g => `
         <div class="card"><b>Grupo ${esc(g)}</b>
           <table class="standings"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>Pts</th><th>DG</th></tr></thead><tbody>
-          ${st[g].map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.team.name)}</td><td>${r.pj}</td><td><b>${r.pts}</b></td><td>${r.gf - r.ga}</td></tr>`).join('')}
+          ${st[g].map((r, i) => `<tr><td>${i + 1}</td><td>${flagImg(r.team.flag, 'flag flag-sm')} ${esc(r.team.name)}</td><td>${r.pj}</td><td><b>${r.pts}</b></td><td>${r.gf - r.ga}</td></tr>`).join('')}
           </tbody></table></div>`).join('')}</div>`;
   }
   function groupRowReadOnly(m) {
@@ -156,7 +163,7 @@
   }
 
   // ---------------------------------------------------------- Llave --------
-  const teamObj = (t) => (t && t.code) ? { name: t.name, code: t.code } : (t && t.label ? { label: t.label, code: null } : null);
+  const teamObj = (t) => (t && t.code) ? { name: t.name, code: t.code, flag: t.flag || null } : (t && t.label ? { label: t.label, code: null } : null);
   function computeCandidates(tree, picks) {
     const cand = {};
     tree.r32.forEach(n => { cand[n.id] = { a: teamObj(n.teams.a), b: teamObj(n.teams.b) }; });
@@ -185,7 +192,8 @@
     if (actualSet && code && actualSet.has(code)) cls.push(picked ? 'correct' : 'real-adv');
     const clickAttr = (interactive && code) ? ` data-action="pick" data-node="${node.id}" data-code="${esc(code)}"` : '';
     const name = team ? (code ? team.name : (team.label || '—')) : '—';
-    return `<div class="${cls.join(' ')}"${clickAttr}><span class="scode">${esc(code || '')}</span><span class="sname">${esc(name)}</span></div>`;
+    const flag = team && team.flag ? flagImg(team.flag, 'flag flag-sm') : '';
+    return `<div class="${cls.join(' ')}"${clickAttr}>${flag}<span class="scode">${esc(code || '')}</span><span class="sname">${esc(name)}</span></div>`;
   }
   function renderBracketGrid(interactive) {
     const b = STATE.bracket, tree = b.tree;
@@ -239,6 +247,89 @@
       renderBracketGrid(true) +
       `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
         <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
+  }
+
+  // ---------------------------------------------------------- Final --------
+  function finalCard(A, B, f) {
+    const ps = f.your && f.your.score;
+    const mid = ps
+      ? `<span class="goals">${ps.home}</span><span class="dash">-</span><span class="goals">${ps.away}</span>`
+      : `<span class="goals muted">·</span><span class="dash">-</span><span class="goals muted">·</span>`;
+    return `<div class="card"><div class="final-row">${teamCell(A, 'home')}<div class="match-center"><div class="score-area">${mid}</div></div>${teamCell(B, 'away')}</div></div>`;
+  }
+  function finalForm(A, B) {
+    const champ = ui.finalChamp, fs = ui.finalScore || {};
+    const teamBtn = (T) => `<button class="champ-btn ${champ === T.code ? 'sel' : ''}" data-action="final-champ" data-code="${esc(T.code)}">${flagImg(T.flag)}<span>${esc(T.name)}</span></button>`;
+    const ready = champ && fs.home !== '' && fs.home != null && fs.away !== '' && fs.away != null;
+    return `
+      <div class="card">
+        <div class="final-row">
+          ${teamCell(A, 'home')}
+          <div class="match-center"><div class="score-area">
+            <input class="score-input" type="number" min="0" max="99" inputmode="numeric" data-final-side="home" value="${fs.home ?? ''}">
+            <span class="dash">-</span>
+            <input class="score-input" type="number" min="0" max="99" inputmode="numeric" data-final-side="away" value="${fs.away ?? ''}">
+          </div></div>
+          ${teamCell(B, 'away')}
+        </div>
+        <p class="sub" style="text-align:center;margin:.8rem 0 .3rem">¿Quién levanta la copa? (vale aunque haya empate: prórroga/penaltis)</p>
+        <div class="champ-pick">${teamBtn(A)}${teamBtn(B)}</div>
+      </div>
+      <div class="sticky-submit"><span class="sub">${ready ? 'listo para enviar' : 'pon el marcador y elige campeón'}</span>
+        <button class="btn primary" data-action="final-submit" ${ready ? '' : 'disabled'}>Enviar apuesta de la final (definitivo)</button></div>`;
+  }
+  function renderFinal() {
+    const f = STATE.final;
+    const head = `<div class="section-head"><h2>🏆 La Final</h2><p>Apuesta el <b>marcador exacto</b> y el <b>1X2</b> de la final, y el <b>campeón</b> del Mundial. Se envía una sola vez.</p></div>`;
+    if (!f.teams) return head + `<div class="empty">Se abrirá cuando se conozcan los dos finalistas (tras las semifinales).</div>`;
+    const A = f.teams.home, B = f.teams.away;
+    const champName = (code) => code === A.code ? A.name : (code === B.code ? B.name : '—');
+    const rules = `<div class="notice info">Reglas: <b>${f.rules.exactScore} pts</b> exacto · <b>${f.rules.sign} pt</b> 1X2 · <b>+${f.rules.championBonus} pts</b> por el campeón (incluye prórroga/penaltis).</div>`;
+    if (f.submitted) {
+      let res = '';
+      if (f.actual) {
+        const ps = f.your.score, as = f.actual.score, sg = (h, a) => h > a ? '1' : h < a ? '2' : 'X';
+        const exact = ps.home === as.home && ps.away === as.away;
+        const signHit = sg(ps.home, ps.away) === sg(as.home, as.away);
+        const champHit = f.your.champion && f.actual.winner && f.your.champion === f.actual.winner;
+        res = `<div class="notice ${exact || signHit || champHit ? 'ok' : 'warn'}">Final real: ${as.home}-${as.away}, campeón ${esc(champName(f.actual.winner))}. ${exact ? '✓ exacto' : (signHit ? '✓ 1X2' : '✗ marcador')}${champHit ? ' · ✓ campeón' : ''}</div>`;
+      }
+      return head + `<div class="notice ok">Tu apuesta: <b>${esc(A.name)} ${f.your.score.home}-${f.your.score.away} ${esc(B.name)}</b> · campeón: <b>${esc(champName(f.your.champion))}</b> (enviada ${fmt(f.submittedAt)}).</div>` + res + finalCard(A, B, f);
+    }
+    if (!f.open) return head + `<div class="notice info">La apuesta de la final está cerrada.</div>` + finalCard(A, B, f);
+    return head + rules + `<div class="notice warn">⚠️ Una sola vez. Pon el marcador y elige el campeón.</div>` + finalForm(A, B);
+  }
+
+  // ----------------------------------------------------------- MVP ---------
+  function mvpGrid(m, selected) {
+    return `<div class="mvp-grid">${m.candidates.map(p => {
+      const sel = selected === p.id || (m.submitted && m.yourPick === p.id);
+      const flag = flagImg(p.flag, 'flag flag-lg');
+      const click = (m.open && !m.submitted) ? ` data-action="mvp-pick" data-player="${esc(p.id)}"` : '';
+      const star = m.actual === p.id ? ' ⭐' : '';
+      return `<div class="mvp-card ${sel ? 'sel' : ''}"${click}>${flag}<div><div class="mvp-name">${esc(p.name)}${star}</div><div class="sub">${esc(p.team)}</div></div></div>`;
+    }).join('')}</div>`;
+  }
+  function renderMvp() {
+    const m = STATE.mvp;
+    const head = `<div class="section-head"><h2>⭐ Jugador del torneo (MVP)</h2><p>Apuesta por el MVP entre los 10 jugadores más destacados. Se envía <b>una sola vez</b>.</p></div>`;
+    if (m.submitted) {
+      const pick = m.candidates.find(p => p.id === m.yourPick);
+      let res = '';
+      if (m.actual) res = (m.actual === m.yourPick)
+        ? `<div class="notice ok">✓ ¡Acertaste el MVP! +${m.points} pts</div>`
+        : `<div class="notice warn">Esta vez no acertaste el MVP.</div>`;
+      return head + `<div class="notice ok">Tu apuesta: <b>${esc(pick ? pick.name : '—')}</b> (enviada ${fmt(m.submittedAt)}). No se puede cambiar.</div>` + res + mvpGrid(m, null);
+    }
+    if (!m.open) {
+      const why = (m.window && m.window.passedDeadline) ? 'La apuesta de MVP ya está cerrada.' : 'Se abrirá en la fase eliminatoria (cuando terminen los grupos).';
+      return head + `<div class="notice info">${why} Estos son los 10 candidatos:</div>` + mvpGrid(m, null);
+    }
+    return head + `<div class="notice info">+${m.points} pts si aciertas el MVP del torneo.</div>`
+      + `<div class="notice warn">⚠️ Una sola vez. Elige un jugador y envía.</div>`
+      + mvpGrid(m, ui.mvpPick)
+      + `<div class="sticky-submit"><span class="sub">${ui.mvpPick ? '1 jugador elegido' : 'elige un jugador'}</span>
+         <button class="btn primary" data-action="mvp-submit" ${ui.mvpPick ? '' : 'disabled'}>Enviar MVP (definitivo)</button></div>`;
   }
 
   // --------------------------------------------------------- Cuenta --------
@@ -317,6 +408,16 @@
       } else if (a === 'bracket-submit') {
         try { await api('/bracket', { method: 'POST', body: JSON.stringify({ picks: ui.bracketPicks }) }); ui.bracketPicks = null; setNotice('✓ Llave enviada.', 'ok'); await loadState(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (a === 'mvp-pick') {
+        ui.mvpPick = t.dataset.player; render();
+      } else if (a === 'mvp-submit') {
+        try { await api('/mvp', { method: 'POST', body: JSON.stringify({ playerId: ui.mvpPick }) }); ui.mvpPick = null; setNotice('✓ Apuesta de MVP enviada.', 'ok'); await loadState(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (a === 'final-champ') {
+        ui.finalChamp = t.dataset.code; render();
+      } else if (a === 'final-submit') {
+        try { await api('/final', { method: 'POST', body: JSON.stringify({ score: ui.finalScore, champion: ui.finalChamp }) }); ui.finalChamp = null; ui.finalScore = {}; setNotice('✓ Apuesta de la final enviada.', 'ok'); await loadState(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'admin-refresh') {
         try { const r = await api('/admin/refresh', { method: 'POST' }); setNotice(`✓ ${r.count} partidos (${r.finished} finalizados).`, 'ok'); await loadState(); ui.tab = 'admin'; render(); refreshAdmin(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
@@ -334,7 +435,10 @@
         const id = inp.dataset.match;
         ui.groupDraft[id] = ui.groupDraft[id] || {};
         ui.groupDraft[id][inp.dataset.side] = inp.value;
+        return;
       }
+      const fin = e.target.closest('[data-final-side]');
+      if (fin) { ui.finalScore = ui.finalScore || {}; ui.finalScore[fin.dataset.finalSide] = fin.value; }
     });
 
     root.addEventListener('submit', async (e) => {

@@ -84,12 +84,20 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .match { display: grid; grid-template-columns: 1fr auto 1fr; grid-template-areas: "home center away" "foot foot foot";
   gap: .4rem .6rem; align-items: center; background: var(--panel); border: 1px solid var(--line);
   border-radius: 12px; padding: .6rem .8rem; margin-bottom: .5rem; }
-.team { display: flex; flex-direction: column; }
-.team.home { grid-area: home; text-align: right; align-items: flex-end; }
-.team.away { grid-area: away; text-align: left; align-items: flex-start; }
+.team { display: flex; align-items: center; gap: .45rem; }
+.team.home { justify-content: flex-end; }
+.team.away { justify-content: flex-start; }
+.match .team.home { grid-area: home; }
+.match .team.away { grid-area: away; }
+.tinfo { display: flex; flex-direction: column; }
+.team.home .tinfo { align-items: flex-end; text-align: right; }
+.team.away .tinfo { align-items: flex-start; text-align: left; }
 .tname { font-weight: 600; font-size: .92rem; }
 .tcode { font-size: .68rem; color: var(--muted); letter-spacing: .05em; }
-.match-center { grid-area: center; }
+.flag { width: 26px; height: 18px; object-fit: cover; border-radius: 3px; box-shadow: 0 0 0 1px rgba(0,0,0,.35); flex: none; background: #0e2330; }
+.flag-sm { width: 20px; height: 14px; }
+.flag-lg { width: 40px; height: 28px; }
+.match .match-center { grid-area: center; }
 .score-area { display: flex; align-items: center; gap: .35rem; }
 .dash { color: var(--muted); }
 .score-input { width: 44px; padding: .4rem; text-align: center; font-size: 1.1rem; font-weight: 700;
@@ -131,6 +139,23 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .champ-box { margin-top: .6rem; text-align: center; }
 .champ-box .champ { display: inline-block; background: rgba(255,209,102,.16); border: 1px solid var(--accent);
   border-radius: 10px; padding: .5rem 1rem; font-weight: 800; }
+
+/* MVP */
+.mvp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .7rem; margin-top: .3rem; }
+.mvp-card { display: flex; align-items: center; gap: .7rem; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; padding: .7rem .8rem; cursor: default; }
+.mvp-card[data-action] { cursor: pointer; }
+.mvp-card[data-action]:hover { border-color: var(--primary); }
+.mvp-card.sel { border-color: var(--primary); background: rgba(0,184,148,.16); box-shadow: 0 0 0 1px var(--primary) inset; }
+.mvp-name { font-weight: 700; }
+
+/* Final */
+.final-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .6rem; }
+.champ-pick { display: flex; gap: .8rem; justify-content: center; flex-wrap: wrap; }
+.champ-btn { display: flex; align-items: center; gap: .5rem; background: var(--panel2); border: 1px solid var(--line);
+  color: var(--text); padding: .55rem .9rem; border-radius: 10px; cursor: pointer; font-weight: 600; }
+.champ-btn:hover { border-color: var(--primary); }
+.champ-btn.sel { border-color: var(--primary); background: rgba(0,184,148,.18); box-shadow: 0 0 0 1px var(--primary) inset; }
 
 /* Admin / cuenta */
 .user-list { width: 100%; border-collapse: collapse; margin-top: .6rem; }

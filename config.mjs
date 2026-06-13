@@ -47,6 +47,13 @@ export const CONFIG = {
       perWinner: 2,   // por cada cruce acertado (igual en TODAS las rondas)
       top4Bonus: 5,   // extra por cada semifinalista (top 4) acertado
     },
+    // La Final: apuesta especial cuando se conocen los finalistas.
+    final: {
+      exactScore: 5,     // marcador exacto de la final (90'/tiempo reglamentario)
+      signPartial: 2,    // solo el signo (ganador/empate) sin marcador exacto
+      sign: 2,           // extra por acertar el 1X2 de la final
+      championBonus: 10, // por acertar el CAMPEÓN (incluye prórroga/penaltis)
+    },
   },
 
   // --- Fases (para etiquetas e interfaz) -----------------------------------
@@ -54,6 +61,27 @@ export const CONFIG = {
     { key: 'GROUP', name: 'Fase de grupos' },
     { key: 'BRACKET', name: 'Eliminatorias (llave)' },
   ],
+
+  // --- MVP / Jugador del torneo --------------------------------------------
+  // Se abre con la fase eliminatoria. Cada usuario apuesta por UNO.
+  // Edita la lista (los 10 más destacados) y pon `actual` con el id ganador
+  // cuando se conozca para repartir los puntos.
+  mvp: {
+    points: 10,        // puntos por acertar el MVP
+    actual: null,      // id del jugador ganador (p.ej. 'p2'); null hasta conocerse
+    candidates: [
+      { id: 'p1',  name: 'Lionel Messi',     team: 'Argentina',      code: 'ARG' },
+      { id: 'p2',  name: 'Kylian Mbappé',    team: 'Francia',        code: 'FRA' },
+      { id: 'p3',  name: 'Jude Bellingham',  team: 'Inglaterra',     code: 'ENG' },
+      { id: 'p4',  name: 'Vinícius Júnior',  team: 'Brasil',         code: 'BRA' },
+      { id: 'p5',  name: 'Lamine Yamal',     team: 'España',         code: 'ESP' },
+      { id: 'p6',  name: 'Harry Kane',       team: 'Inglaterra',     code: 'ENG' },
+      { id: 'p7',  name: 'Kevin De Bruyne',  team: 'Bélgica',        code: 'BEL' },
+      { id: 'p8',  name: 'Rodrygo',          team: 'Brasil',         code: 'BRA' },
+      { id: 'p9',  name: 'Pedri',            team: 'España',         code: 'ESP' },
+      { id: 'p10', name: 'Christian Pulisic',team: 'Estados Unidos', code: 'USA' },
+    ],
+  },
 };
 
 // ============================================================================
