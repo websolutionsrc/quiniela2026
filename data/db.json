@@ -1,0 +1,107 @@
+{
+  "users": {
+    "admin": {
+      "username": "admin",
+      "name": "Administrador",
+      "passHash": "dbc386f6b7cb02bc79518d69a5d9e2a2:2446b055c06516f02161079cf0a07cff048ec428a23e97d02c73a6e9f0c3dcc1c37cee0cf693a99c515aa9523509c2fc7ca32201f72118e255d785d02ef81ccf",
+      "isAdmin": true,
+      "createdAt": "2026-06-13T16:51:55.350Z"
+    },
+    "jorge": {
+      "username": "jorge",
+      "name": "jorge",
+      "passHash": "c7541ee77051c8e2a1609ceef1e58f26:766f2e92e55026e93f7743e3f1b209c6095b14d46bdbf8e7c7f6a1ba5a3ab22c6bff4bd78648b9ca9f0672cb4f781c2e679d0324cf5d6cb3b63bfc69d4129f79",
+      "isAdmin": false,
+      "createdAt": "2026-06-13T16:59:12.295Z"
+    }
+  },
+  "sessions": {
+    "4772dfe79d9f3cf5f9c0e4cd1b8cabdcb49ce696ef542089f61acc6e3a62b9a8": {
+      "username": "admin",
+      "exp": 1783963749900
+    }
+  },
+  "predictions": {
+    "jorge": {
+      "group": {
+        "submitted": true,
+        "at": "2026-06-13T17:01:03.052Z",
+        "picks": {
+          "demo-19": {
+            "home": 2,
+            "away": 1
+          },
+          "demo-20": {
+            "home": 2,
+            "away": 2
+          },
+          "demo-3": {
+            "home": 1,
+            "away": 1
+          },
+          "demo-4": {
+            "home": 2,
+            "away": 1
+          },
+          "demo-9": {
+            "home": 6,
+            "away": 2
+          },
+          "demo-10": {
+            "home": 2,
+            "away": 1
+          },
+          "demo-15": {
+            "home": 5,
+            "away": 1
+          },
+          "demo-16": {
+            "home": 3,
+            "away": 1
+          },
+          "demo-21": {
+            "home": 1,
+            "away": 1
+          },
+          "demo-22": {
+            "home": 1,
+            "away": 2
+          },
+          "demo-5": {
+            "home": 3,
+            "away": 1
+          },
+          "demo-6": {
+            "home": 4,
+            "away": 5
+          },
+          "demo-11": {
+            "home": 3,
+            "away": 2
+          },
+          "demo-12": {
+            "home": 2,
+            "away": 1
+          },
+          "demo-17": {
+            "home": 1,
+            "away": 1
+          },
+          "demo-18": {
+            "home": 1,
+            "away": 2
+          },
+          "demo-23": {
+            "home": 3,
+            "away": 4
+          },
+          "demo-24": {
+            "home": 5,
+            "away": 1
+          }
+        }
+      }
+    }
+  },
+  "meta": {}
+}

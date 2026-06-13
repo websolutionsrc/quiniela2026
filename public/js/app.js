@@ -1,0 +1,365 @@
+// ============================================================================
+//  Quiniela Mundial 2026 — Frontend (SPA, sin dependencias)
+// ============================================================================
+(function () {
+  const $app = () => document.getElementById('app');
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+    c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const fmt = (iso) => new Date(iso).toLocaleString('es-ES',
+    { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+  let STATE = null, ME = null;
+  const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null };
+
+  async function api(path, opts = {}) {
+    const r = await fetch('/api' + path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
+    let data = {}; try { data = await r.json(); } catch {}
+    if (!r.ok) throw new Error(data.error || ('Error ' + r.status));
+    return data;
+  }
+  const setNotice = (msg, type = 'info') => { ui.notice = { msg, type }; };
+
+  async function boot() {
+    try { const { me } = await api('/me'); ME = me; await loadState(); }
+    catch { renderLogin(); }
+  }
+  async function loadState() { STATE = await api('/state'); ME = STATE.me; render(); }
+
+  // ----------------------------------------------------------- Login -------
+  function renderLogin() {
+    const n = ui.notice ? `<div class="notice ${ui.notice.type}" role="alert">${esc(ui.notice.msg)}</div>` : '';
+    $app().innerHTML = `
+      <div class="auth-wrap">
+        <div class="brand"><div class="ball">⚽</div><h1>Quiniela Mundial 2026</h1>
+          <p class="tagline">Clasificación · Grupos · Llave eliminatoria</p></div>
+        <div class="card">${n}
+          <form id="login-form" autocomplete="off">
+            <label>Usuario<input name="username" required></label>
+            <label>Contraseña<input name="password" type="password" required></label>
+            <button class="btn primary block" type="submit">Entrar</button>
+          </form>
+          <p class="hint">Las cuentas las crea el administrador. Si no tienes, pídesela.</p>
+        </div>
+      </div>`;
+    ui.notice = null;
+  }
+
+  // ------------------------------------------------------- App shell -------
+  function render() {
+    const s = STATE;
+    const nav = [['ranking', '🏆 Clasificación'], ['grupos', '📝 Grupos'], ['llave', '🗝️ Llave'], ['cuenta', '👤 Cuenta']];
+    if (ME.isAdmin) nav.push(['admin', '⚙️ Admin']);
+    const navHtml = nav.map(([k, l]) => `<button class="nav-btn ${ui.tab === k ? 'active' : ''}" data-action="tab" data-tab="${k}">${l}</button>`).join('');
+    let content = '';
+    if (ui.tab === 'ranking') content = renderRanking();
+    else if (ui.tab === 'grupos') content = renderGroups();
+    else if (ui.tab === 'llave') content = renderBracket();
+    else if (ui.tab === 'cuenta') content = renderAccount();
+    else if (ui.tab === 'admin') content = renderAdmin();
+    const src = s.source === 'datos-de-ejemplo' ? '🟡 Datos de ejemplo' : '🟢 ' + esc(s.source);
+    const clock = (s.simulated ? '🕒 (simulado) ' : '🕒 ') + fmt(s.now);
+    $app().innerHTML = `
+      <header class="topbar">
+        <div class="topbar-left"><span class="logo">⚽ Quiniela Mundial 2026</span>
+          <span class="source">${src} · ${clock}</span></div>
+        <div class="topbar-right">
+          <span class="user-chip">👤 ${esc(ME.name)}${ME.isAdmin ? ' · admin' : ''}</span>
+          <button class="btn ghost sm" data-action="logout">Salir</button>
+        </div>
+      </header>
+      <nav class="mainnav">${navHtml}</nav>
+      <main class="content">${ui.notice ? `<div class="notice ${ui.notice.type}" role="alert">${esc(ui.notice.msg)}</div>` : ''}${content}</main>`;
+    ui.notice = null;
+  }
+
+  // -------------------------------------------------------- Ranking --------
+  function renderRanking() {
+    const rows = STATE.ranking;
+    const head = `<div class="section-head"><h2>🏆 Clasificación</h2><p>Total = puntos de grupos (exacto + 1X2) + puntos de la llave.</p></div>`;
+    if (!rows.length) return head + `<div class="empty">Aún no hay jugadores con datos.</div>`;
+    const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : r;
+    return head + `
+      <table class="ranking"><thead><tr><th>#</th><th>Jugador</th><th>Total</th><th>Grupos</th><th>Llave</th></tr></thead><tbody>
+      ${rows.map(r => `<tr class="${r.username === ME.username ? 'me' : ''}">
+        <td class="rank">${medal(r.rank)}</td>
+        <td>${esc(r.name)}${r.username === ME.username ? ' <span class="youtag">tú</span>' : ''}
+          <div class="sub">exactos ${r.group.exactHits} · 1X2 ${r.group.signHits} · llave aciertos ${r.bracket.correct} · top4 ${r.bracket.top4}</div></td>
+        <td class="pts-cell">${r.total}</td><td>${r.group.combined}</td><td>${r.bracket.points}</td></tr>`).join('')}
+      </tbody></table>`;
+  }
+
+  // --------------------------------------------------------- Grupos --------
+  function teamCell(team, side) {
+    const name = team.code ? team.name : (team.label || '—');
+    return `<div class="team ${side}"><span class="tname">${esc(name)}</span><span class="tcode">${esc(team.code || '')}</span></div>`;
+  }
+  function byGroup(matches) {
+    const g = {}; matches.forEach(m => { (g[m.group || '?'] = g[m.group || '?'] || []).push(m); }); return g;
+  }
+  function renderStandings(st) {
+    const keys = Object.keys(st || {});
+    if (!keys.length) return '';
+    return `<h3 class="group-title" style="margin-top:1.2rem">Clasificación de grupos (según resultados)</h3>
+      <div class="standings-grid">${keys.map(g => `
+        <div class="card"><b>Grupo ${esc(g)}</b>
+          <table class="standings"><thead><tr><th>#</th><th>Equipo</th><th>PJ</th><th>Pts</th><th>DG</th></tr></thead><tbody>
+          ${st[g].map((r, i) => `<tr><td>${i + 1}</td><td>${esc(r.team.name)}</td><td>${r.pj}</td><td><b>${r.pts}</b></td><td>${r.gf - r.ga}</td></tr>`).join('')}
+          </tbody></table></div>`).join('')}</div>`;
+  }
+  function groupRowReadOnly(m) {
+    let mid, foot;
+    if (m.score) { mid = `<span class="goals">${m.score.home}</span><span class="dash">-</span><span class="goals">${m.score.away}</span>`; }
+    else { mid = `<span class="goals muted">·</span><span class="dash">-</span><span class="goals muted">·</span>`; }
+    if (m.yourPred) {
+      foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span>Tu pronóstico: ${m.yourPred.home}-${m.yourPred.away}`;
+      if (m.points && m.points.hasResult) foot += ` · <span class="pts ${m.points.exactHit ? 'hit' : ''}">Exacto +${m.points.exact}</span><span class="pts ${m.points.signHit ? 'hit' : ''}">1X2 +${m.points.sign}</span>`;
+      foot += `</span>`;
+    } else {
+      foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span class="sub">${m.score ? 'no incluido' : 'pendiente'}</span>`;
+    }
+    return `<div class="match">${teamCell(m.home, 'home')}<div class="match-center"><div class="score-area">${mid}</div></div>${teamCell(m.away, 'away')}<div class="match-foot">${foot}</div></div>`;
+  }
+  function groupRowForm(m) {
+    const d = ui.groupDraft[m.id] || {};
+    return `<div class="match" data-match-row>${teamCell(m.home, 'home')}
+      <div class="match-center"><div class="score-area">
+        <input class="score-input" type="number" min="0" max="99" inputmode="numeric" data-match="${m.id}" data-side="home" value="${d.home ?? ''}" aria-label="Goles ${esc(m.home.name)}">
+        <span class="dash">-</span>
+        <input class="score-input" type="number" min="0" max="99" inputmode="numeric" data-match="${m.id}" data-side="away" value="${d.away ?? ''}" aria-label="Goles ${esc(m.away.name)}">
+      </div></div>${teamCell(m.away, 'away')}
+      <div class="match-foot"><span>J${m.matchday} · ${fmt(m.utcDate)}</span></div></div>`;
+  }
+  function renderGroups() {
+    const g = STATE.group;
+    const head = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Predice el marcador de cada partido. Se envía <b>todo a la vez y una sola vez</b>.</p></div>`;
+    const rules = `<div class="notice info">Reglas: <b>${STATE.rules.group.exactScore} pts</b> por marcador exacto, <b>${STATE.rules.group.signPartial} pt</b> por acertar solo el ganador/empate, y <b>${STATE.rules.group.sign} pt</b> extra por el 1X2.</div>`;
+    const standings = renderStandings(g.standings);
+
+    if (g.submitted) {
+      const blocks = Object.entries(byGroup(g.matches)).sort().map(([k, ms]) =>
+        `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(groupRowReadOnly).join('')}</div>`).join('');
+      return head + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + blocks + standings;
+    }
+    if (g.open) {
+      const up = new Set(g.upcomingIds);
+      const formMatches = g.matches.filter(m => up.has(m.id));
+      const blocks = Object.entries(byGroup(formMatches)).sort().map(([k, ms]) =>
+        `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(groupRowForm).join('')}</div>`).join('');
+      return head + rules +
+        `<div class="notice warn">⚠️ Una vez envíes, <b>no podrás cambiarlo</b>. Rellena todos los partidos.</div>
+         <form id="group-form">${blocks}
+           <div class="sticky-submit"><span class="sub">${formMatches.length} partidos por pronosticar</span>
+             <button class="btn primary" type="submit">Enviar predicciones (definitivo)</button></div>
+         </form>` + standings;
+    }
+    return head + `<div class="empty">No hay partidos de grupos disponibles para predecir ahora mismo.</div>` + standings;
+  }
+
+  // ---------------------------------------------------------- Llave --------
+  const teamObj = (t) => (t && t.code) ? { name: t.name, code: t.code } : (t && t.label ? { label: t.label, code: null } : null);
+  function computeCandidates(tree, picks) {
+    const cand = {};
+    tree.r32.forEach(n => { cand[n.id] = { a: teamObj(n.teams.a), b: teamObj(n.teams.b) }; });
+    const winner = (id) => { const c = cand[id]; const code = picks[id]; if (!code || !c) return null; if (c.a && c.a.code === code) return c.a; if (c.b && c.b.code === code) return c.b; return null; };
+    [tree.r16, tree.qf, tree.sf, [tree.final]].forEach(nodes => nodes.forEach(n => { cand[n.id] = { a: winner(n.childA), b: winner(n.childB) }; }));
+    return cand;
+  }
+  function prunePicks(tree, picks) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const cand = computeCandidates(tree, picks);
+      [...tree.r16, ...tree.qf, ...tree.sf, tree.final].forEach(n => {
+        const c = cand[n.id], code = picks[n.id];
+        const valid = [c.a && c.a.code, c.b && c.b.code].filter(Boolean);
+        if (code && !valid.includes(code)) { delete picks[n.id]; changed = true; }
+      });
+    }
+  }
+  function slotHtml(node, which, team, picks, interactive, actualSet) {
+    const code = team && team.code;
+    const picked = code && picks[node.id] === code;
+    const cls = ['slot'];
+    if (picked) cls.push('pick');
+    if (!code) cls.push('label');
+    if (actualSet && code && actualSet.has(code)) cls.push(picked ? 'correct' : 'real-adv');
+    const clickAttr = (interactive && code) ? ` data-action="pick" data-node="${node.id}" data-code="${esc(code)}"` : '';
+    const name = team ? (code ? team.name : (team.label || '—')) : '—';
+    return `<div class="${cls.join(' ')}"${clickAttr}><span class="scode">${esc(code || '')}</span><span class="sname">${esc(name)}</span></div>`;
+  }
+  function renderBracketGrid(interactive) {
+    const b = STATE.bracket, tree = b.tree;
+    const picks = interactive ? ui.bracketPicks : b.yourPicks;
+    const cand = computeCandidates(tree, picks || {});
+    // Conjuntos reales que avanzaron (para resaltar aciertos cuando ya está enviado).
+    const ar = b.actualReached || {};
+    const setFor = { R32: new Set(ar.R16 || []), R16: new Set(ar.QF || []), QF: new Set(ar.SF || []), SF: new Set(ar.FINAL || []), FINAL: new Set(ar.CHAMP || []) };
+    const cols = [
+      { head: '1/16', nodes: tree.r32, round: 'R32' },
+      { head: 'Octavos', nodes: tree.r16, round: 'R16' },
+      { head: 'Cuartos', nodes: tree.qf, round: 'QF' },
+      { head: 'Semis', nodes: tree.sf, round: 'SF' },
+      { head: 'Final', nodes: [tree.final], round: 'FINAL' },
+    ];
+    const showActual = b.submitted;
+    const colHtml = cols.map(col => `
+      <div class="round"><div class="round-head">${col.head}</div>
+        ${col.nodes.map(n => {
+          const c = cand[n.id];
+          return `<div class="tie ${interactive ? 'clickable' : ''} ${col.round === 'FINAL' ? 'final-tie' : ''}">
+            ${slotHtml(n, 'a', c.a, picks || {}, interactive, showActual ? setFor[col.round] : null)}
+            ${slotHtml(n, 'b', c.b, picks || {}, interactive, showActual ? setFor[col.round] : null)}
+          </div>`;
+        }).join('')}
+      </div>`).join('');
+    const champCode = (picks || {})[tree.final.id];
+    const champTeam = cand[tree.final.id] && [cand[tree.final.id].a, cand[tree.final.id].b].find(t => t && t.code === champCode);
+    const champ = champTeam ? `<div class="champ-box"><span class="champ">🏆 Tu campeón: ${esc(champTeam.name)}</span></div>` : '';
+    return `<div class="bracket-scroll"><div class="bracket">${colHtml}</div></div>${champ}`;
+  }
+  function rulesBracket() {
+    return `<div class="notice info">Reglas de la llave: <b>${STATE.rules.bracket.perWinner} pts</b> por cada cruce que aciertes (igual en todas las rondas) y <b>+${STATE.rules.bracket.top4Bonus} pts</b> extra por cada semifinalista (top 4) acertado.</div>`;
+  }
+  function renderBracket() {
+    const b = STATE.bracket;
+    const head = `<div class="section-head"><h2>🗝️ Llave eliminatoria</h2><p>Elige quién avanza en cada cruce hasta el campeón. Se envía <b>una sola vez</b>.</p></div>`;
+    if (b.submitted) {
+      return head + `<div class="notice ok">✓ Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + renderBracketGrid(false);
+    }
+    if (!b.window.open) {
+      const why = b.window.passedDeadline ? 'La llave ya está cerrada.' : 'La llave se abrirá cuando terminen los grupos y se conozcan los 32 equipos.';
+      return head + `<div class="notice info">${why} Vista previa del cuadro:</div>` + renderBracketGrid(false);
+    }
+    if (!ui.bracketPicks) ui.bracketPicks = { ...(b.yourPicks || {}) };
+    const total = b.tree.r32.length + b.tree.r16.length + b.tree.qf.length + b.tree.sf.length + 1;
+    const done = Object.keys(ui.bracketPicks).filter(k => ui.bracketPicks[k]).length;
+    const complete = done >= total;
+    return head + rulesBracket() +
+      `<div class="notice warn">⚠️ Una vez envíes, <b>no podrás cambiarlo</b>. Haz clic en el equipo que avanza en cada cruce.</div>` +
+      renderBracketGrid(true) +
+      `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
+        <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
+  }
+
+  // --------------------------------------------------------- Cuenta --------
+  function renderAccount() {
+    return `<div class="section-head"><h2>👤 Mi cuenta</h2><p>Usuario: <b>${esc(ME.username)}</b>. Aquí solo puedes cambiar tu contraseña.</p></div>
+      <div class="card" style="max-width:420px">
+        <form id="account-form" autocomplete="off">
+          <label>Contraseña actual<input name="current" type="password" required></label>
+          <label>Nueva contraseña<input name="new" type="password" required minlength="4"></label>
+          <label>Repite la nueva<input name="confirm" type="password" required minlength="4"></label>
+          <button class="btn primary block" type="submit">Cambiar contraseña</button>
+        </form>
+      </div>`;
+  }
+
+  // ---------------------------------------------------------- Admin --------
+  function renderAdmin() {
+    const users = ui.adminUsers || [];
+    const rows = users.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.username)}</td><td>${u.isAdmin ? '👑' : ''}</td>
+      <td class="row-actions">
+        <button class="btn sm" data-action="admin-reset" data-user="${esc(u.username)}">Reset clave</button>
+        ${u.isAdmin ? '' : `<button class="btn sm danger" data-action="admin-delete" data-user="${esc(u.username)}">Borrar</button>`}
+      </td></tr>`).join('');
+    return `<div class="section-head"><h2>⚙️ Administración</h2><p>Crea cuentas para tus amigos y gestiona resultados.</p></div>
+      <div class="grid2">
+        <div class="card"><h3 class="group-title">Crear usuario</h3>
+          <form id="admin-create-form" autocomplete="off">
+            <label>Usuario (sin espacios)<input name="username" required></label>
+            <label>Nombre a mostrar<input name="name"></label>
+            <label>Contraseña inicial<input name="password" required minlength="4"></label>
+            <button class="btn primary block" type="submit">Crear cuenta</button>
+          </form>
+        </div>
+        <div class="card"><h3 class="group-title">Resultados (football-data.org)</h3>
+          <p class="sub">Descarga partidos y resultados reales. La llave se rellenará al terminar los grupos.</p>
+          <button class="btn" data-action="admin-refresh">↻ Actualizar resultados ahora</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem"><h3 class="group-title">Usuarios</h3>
+        <table class="user-list"><thead><tr><th>Nombre</th><th>Usuario</th><th></th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="sub">Cargando…</td></tr>'}</tbody></table>
+      </div>`;
+  }
+  async function refreshAdmin() {
+    try { const { users } = await api('/admin/users'); ui.adminUsers = users; }
+    catch (e) { setNotice(e.message, 'err'); }
+    render();
+  }
+
+  // --------------------------------------------------------- Eventos -------
+  function collectGroupPicks() {
+    const picks = {};
+    document.querySelectorAll('#group-form [data-match-row]').forEach(row => {
+      const h = row.querySelector('[data-side="home"]'), a = row.querySelector('[data-side="away"]');
+      picks[h.dataset.match] = { home: h.value, away: a.value };
+    });
+    return picks;
+  }
+
+  function attach() {
+    const root = $app();
+    root.addEventListener('click', async (e) => {
+      const t = e.target.closest('[data-action]');
+      if (!t) return;
+      const a = t.dataset.action;
+      if (a === 'tab') {
+        ui.tab = t.dataset.tab;
+        if (ui.tab === 'admin') { render(); refreshAdmin(); } else render();
+      } else if (a === 'logout') {
+        try { await api('/logout', { method: 'POST' }); } catch {}
+        STATE = null; ME = null; ui.tab = 'ranking'; renderLogin();
+      } else if (a === 'pick') {
+        ui.bracketPicks = ui.bracketPicks || {};
+        ui.bracketPicks[t.dataset.node] = t.dataset.code;
+        prunePicks(STATE.bracket.tree, ui.bracketPicks);
+        render();
+      } else if (a === 'bracket-submit') {
+        try { await api('/bracket', { method: 'POST', body: JSON.stringify({ picks: ui.bracketPicks }) }); ui.bracketPicks = null; setNotice('✓ Llave enviada.', 'ok'); await loadState(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (a === 'admin-refresh') {
+        try { const r = await api('/admin/refresh', { method: 'POST' }); setNotice(`✓ ${r.count} partidos (${r.finished} finalizados).`, 'ok'); await loadState(); ui.tab = 'admin'; render(); refreshAdmin(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (a === 'admin-reset') {
+        const pw = prompt('Nueva contraseña para ' + t.dataset.user + ':');
+        if (pw) { try { await api('/admin/reset', { method: 'POST', body: JSON.stringify({ username: t.dataset.user, password: pw }) }); setNotice('✓ Contraseña cambiada.', 'ok'); } catch (err) { setNotice(err.message, 'err'); } render(); refreshAdmin(); }
+      } else if (a === 'admin-delete') {
+        if (confirm('¿Borrar a ' + t.dataset.user + '?')) { try { await api('/admin/delete', { method: 'POST', body: JSON.stringify({ username: t.dataset.user }) }); setNotice('Usuario borrado.', 'ok'); } catch (err) { setNotice(err.message, 'err'); } render(); refreshAdmin(); }
+      }
+    });
+
+    root.addEventListener('input', (e) => {
+      const inp = e.target.closest('#group-form [data-match]');
+      if (inp) {
+        const id = inp.dataset.match;
+        ui.groupDraft[id] = ui.groupDraft[id] || {};
+        ui.groupDraft[id][inp.dataset.side] = inp.value;
+      }
+    });
+
+    root.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      if (f.id === 'login-form') {
+        const d = new FormData(f);
+        try { const r = await api('/login', { method: 'POST', body: JSON.stringify({ username: d.get('username'), password: d.get('password') }) }); ME = r.me; ui.tab = 'ranking'; await loadState(); }
+        catch (err) { setNotice(err.message, 'err'); renderLogin(); }
+      } else if (f.id === 'group-form') {
+        try { await api('/group', { method: 'POST', body: JSON.stringify({ picks: collectGroupPicks() }) }); ui.groupDraft = {}; setNotice('✓ Predicciones de grupos enviadas.', 'ok'); await loadState(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (f.id === 'account-form') {
+        const d = new FormData(f);
+        if (d.get('new') !== d.get('confirm')) { setNotice('Las contraseñas nuevas no coinciden.', 'err'); render(); return; }
+        try { await api('/account/password', { method: 'POST', body: JSON.stringify({ current: d.get('current'), new: d.get('new') }) }); setNotice('✓ Contraseña cambiada.', 'ok'); render(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (f.id === 'admin-create-form') {
+        const d = new FormData(f);
+        try { await api('/admin/users', { method: 'POST', body: JSON.stringify({ username: d.get('username'), name: d.get('name'), password: d.get('password') }) }); setNotice('✓ Usuario creado.', 'ok'); render(); refreshAdmin(); }
+        catch (err) { setNotice(err.message, 'err'); render(); refreshAdmin(); }
+      }
+    });
+  }
+
+  attach();
+  boot();
+})();
