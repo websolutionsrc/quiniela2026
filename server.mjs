@@ -17,6 +17,7 @@ import { flagUrl, flagUrlFromCode } from './lib/flags.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, 'public');
+const RESULTS_REFRESH_MS = 5 * 60 * 1000;
 
 Auth.ensureAdmin(CONFIG.admin);
 
@@ -62,6 +63,20 @@ function publicLoginError(e) {
     return 'No se pudo iniciar sesión porque el servidor no pudo guardar la sesión. Revisa permisos de la carpeta data o reinicia el servidor.';
   }
   return msg || 'No se pudo iniciar sesión.';
+}
+async function refreshResultsFromAPI(source = 'manual') {
+  const r = await Data.fetchFromAPI();
+  console.log(`[resultados:${source}] ${r.count} partidos (${r.finished} finalizados).`);
+  return r;
+}
+function startResultsRefreshTimer() {
+  if (!CONFIG.api.token) return;
+  const run = async (source) => {
+    try { await refreshResultsFromAPI(source); }
+    catch (e) { console.warn(`[resultados:${source}] ${e.message}`); }
+  };
+  run('inicio');
+  setInterval(() => run('auto'), RESULTS_REFRESH_MS);
 }
 
 // --------------------------------------------------------- estado/API ------
@@ -269,9 +284,9 @@ async function handleApi(req, res, pathname) {
     const h = Number(sc.home), a = Number(sc.away);
     if (!Number.isInteger(h) || !Number.isInteger(a) || h < 0 || a < 0 || h > 99 || a > 99)
       return sendJSON(res, 400, { error: 'Marcador de la final no válido (0-99).' });
-    const champ = b.champion;
+    let champ = h > a ? fw.teams.home.code : (h < a ? fw.teams.away.code : b.champion);
     const validChamp = fw.teams && (champ === fw.teams.home.code || champ === fw.teams.away.code);
-    if (!validChamp) return sendJSON(res, 400, { error: 'Elige el campeón entre los dos finalistas.' });
+    if (h === a && !validChamp) return sendJSON(res, 400, { error: 'Si pronosticas empate, elige quién levanta la copa.' });
     pred.final = { submitted: true, at: new Date().toISOString(), score: { home: h, away: a }, champion: champ };
     saveDB();
     return sendJSON(res, 200, { ok: true });
@@ -308,7 +323,7 @@ async function handleApi(req, res, pathname) {
       return sendJSON(res, 200, { ok: true });
     }
     if (pathname === '/api/admin/refresh' && method === 'POST') {
-      try { const r = await Data.fetchFromAPI(); return sendJSON(res, 200, { ok: true, ...r }); }
+      try { const r = await refreshResultsFromAPI('manual'); return sendJSON(res, 200, { ok: true, ...r }); }
       catch (e) { return sendJSON(res, 400, { error: e.message }); }
     }
   }
@@ -357,4 +372,5 @@ server.listen(CONFIG.port, () => {
   if (CONFIG.simulatedNow) console.log(`   Reloj SIMULADO: ${CONFIG.simulatedNow} (pon REAL_CLOCK=1 para usar el real)`);
   console.log(`   Datos: ${CONFIG.api.token ? 'API football-data.org disponible' : 'sin token -> datos de ejemplo'}`);
   console.log('   Para exponerlo:  cloudflared tunnel --url http://localhost:' + CONFIG.port + '\n');
+  startResultsRefreshTimer();
 });

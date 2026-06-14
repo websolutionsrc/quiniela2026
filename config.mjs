@@ -29,9 +29,6 @@ export const CONFIG = {
   demo: {
     // Si no hay token de la API, usa los datos de ejemplo de sample/.
     useSampleWhenNoToken: true,
-    // Permite abrir la llave aunque los grupos no hayan terminado (solo para
-    // poder probar la interfaz de llave en la demo). En producción: false.
-    forceOpenBracket: !process.env.REAL_CLOCK,
   },
 
   // --- Puntuación ----------------------------------------------------------
@@ -39,8 +36,8 @@ export const CONFIG = {
     // Fase de grupos: predices el marcador de cada partido.
     group: {
       exactScore: 3,  // marcador exacto
-      signPartial: 1, // solo el ganador/empate (sin marcador exacto)
-      sign: 1,        // formato 1X2 (acertar el signo)
+      signPartial: 2, // solo el ganador/empate (sin marcador exacto)
+      sign: 0,        // extra por formato 1X2
     },
     // Llave: predices quién avanza en cada cruce.
     bracket: {
@@ -49,9 +46,9 @@ export const CONFIG = {
     },
     // La Final: apuesta especial cuando se conocen los finalistas.
     final: {
-      exactScore: 5,     // marcador exacto de la final (90'/tiempo reglamentario)
-      signPartial: 2,    // solo el signo (ganador/empate) sin marcador exacto
-      sign: 2,           // extra por acertar el 1X2 de la final
+      exactScore: 7,     // marcador exacto de la final (90'/tiempo reglamentario)
+      signPartial: 0,    // sin puntos por signo en la final
+      sign: 0,           // sin extra por 1X2 en la final
       championBonus: 10, // por acertar el CAMPEÓN (incluye prórroga/penaltis)
     },
   },

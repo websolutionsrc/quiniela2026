@@ -124,7 +124,10 @@
     else { mid = `<span class="goals muted">·</span><span class="dash">-</span><span class="goals muted">·</span>`; }
     if (m.yourPred) {
       foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span>Tu pronóstico: ${m.yourPred.home}-${m.yourPred.away}`;
-      if (m.points && m.points.hasResult) foot += ` · <span class="pts ${m.points.exactHit ? 'hit' : ''}">Exacto +${m.points.exact}</span><span class="pts ${m.points.signHit ? 'hit' : ''}">1X2 +${m.points.sign}</span>`;
+      if (m.points && m.points.hasResult) {
+        foot += ` · <span class="pts ${m.points.exactHit ? 'hit' : ''}">Exacto +${m.points.exact}</span>`;
+        if (m.points.sign > 0) foot += `<span class="pts ${m.points.signHit ? 'hit' : ''}">1X2 +${m.points.sign}</span>`;
+      }
       foot += `</span>`;
     } else {
       foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span class="sub">${m.score ? 'no incluido' : 'pendiente'}</span>`;
@@ -144,7 +147,8 @@
   function renderGroups() {
     const g = STATE.group;
     const head = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Predice el marcador de cada partido. Se envía <b>todo a la vez y una sola vez</b>.</p></div>`;
-    const rules = `<div class="notice info">Reglas: <b>${STATE.rules.group.exactScore} pts</b> por marcador exacto, <b>${STATE.rules.group.signPartial} pt</b> por acertar solo el ganador/empate, y <b>${STATE.rules.group.sign} pt</b> extra por el 1X2.</div>`;
+    const extra = STATE.rules.group.sign > 0 ? `, y <b>${STATE.rules.group.sign} pt</b> extra por el 1X2` : '';
+    const rules = `<div class="notice info">Reglas: <b>${STATE.rules.group.exactScore} pts</b> por marcador exacto y <b>${STATE.rules.group.signPartial} pts</b> por acertar solo el ganador/empate${extra}.</div>`;
     const standings = renderStandings(g.standings);
 
     if (g.submitted) {
@@ -262,10 +266,43 @@
       : `<span class="goals muted">·</span><span class="dash">-</span><span class="goals muted">·</span>`;
     return `<div class="card"><div class="final-row">${teamCell(A, 'home')}<div class="match-center"><div class="score-area">${mid}</div></div>${teamCell(B, 'away')}</div></div>`;
   }
+  function finalScoreReady(fs) {
+    return fs.home !== '' && fs.home != null && fs.away !== '' && fs.away != null;
+  }
+  function finalScoreDraw(fs) {
+    return finalScoreReady(fs) && Number(fs.home) === Number(fs.away);
+  }
+  function finalChampionFromScore(A, B, fs) {
+    if (!finalScoreReady(fs) || finalScoreDraw(fs)) return null;
+    return Number(fs.home) > Number(fs.away) ? A : B;
+  }
+  function syncFinalForm() {
+    const f = STATE && STATE.final;
+    if (!f || !f.teams || ui.tab !== 'final') return;
+    const A = f.teams.home, B = f.teams.away, fs = ui.finalScore || {};
+    const readyScore = finalScoreReady(fs);
+    const isDraw = finalScoreDraw(fs);
+    const implied = finalChampionFromScore(A, B, fs);
+    const ready = readyScore && (!isDraw || !!ui.finalChamp);
+    const champWrap = document.querySelector('[data-final-champ-wrap]');
+    const impliedBox = document.querySelector('[data-final-implied]');
+    const status = document.querySelector('[data-final-status]');
+    const btn = document.querySelector('[data-action="final-submit"]');
+    document.querySelectorAll('[data-action="final-champ"]').forEach(x => x.classList.toggle('sel', ui.finalChamp === x.dataset.code));
+    if (champWrap) champWrap.style.display = isDraw ? '' : 'none';
+    if (impliedBox) {
+      impliedBox.style.display = implied ? '' : 'none';
+      impliedBox.textContent = implied ? `Campeón según tu marcador: ${implied.name}` : '';
+    }
+    if (status) status.textContent = ready ? 'listo para enviar' : (isDraw ? 'elige campeón' : 'pon el marcador');
+    if (btn) btn.disabled = !ready;
+  }
   function finalForm(A, B) {
     const champ = ui.finalChamp, fs = ui.finalScore || {};
     const teamBtn = (T) => `<button class="champ-btn ${champ === T.code ? 'sel' : ''}" data-action="final-champ" data-code="${esc(T.code)}">${flagImg(T.flag)}<span>${esc(T.name)}</span></button>`;
-    const ready = champ && fs.home !== '' && fs.home != null && fs.away !== '' && fs.away != null;
+    const isDraw = finalScoreDraw(fs);
+    const implied = finalChampionFromScore(A, B, fs);
+    const ready = finalScoreReady(fs) && (!isDraw || !!champ);
     return `
       <div class="card">
         <div class="final-row">
@@ -277,32 +314,34 @@
           </div></div>
           ${teamCell(B, 'away')}
         </div>
-        <p class="sub" style="text-align:center;margin:.8rem 0 .3rem">¿Quién levanta la copa? (vale aunque haya empate: prórroga/penaltis)</p>
-        <div class="champ-pick">${teamBtn(A)}${teamBtn(B)}</div>
+        <p class="sub" data-final-implied style="text-align:center;margin:.8rem 0 .3rem;${implied ? '' : 'display:none'}">${implied ? `Campeón según tu marcador: ${esc(implied.name)}` : ''}</p>
+        <div data-final-champ-wrap style="${isDraw ? '' : 'display:none'}">
+          <p class="sub" style="text-align:center;margin:.8rem 0 .3rem">Si pronosticas empate, elige quién levanta la copa en prórroga/penaltis.</p>
+          <div class="champ-pick">${teamBtn(A)}${teamBtn(B)}</div>
+        </div>
       </div>
-      <div class="sticky-submit"><span class="sub">${ready ? 'listo para enviar' : 'pon el marcador y elige campeón'}</span>
+      <div class="sticky-submit"><span class="sub" data-final-status>${ready ? 'listo para enviar' : (isDraw ? 'elige campeón' : 'pon el marcador')}</span>
         <button class="btn primary" data-action="final-submit" ${ready ? '' : 'disabled'}>Enviar apuesta de la final (definitivo)</button></div>`;
   }
   function renderFinal() {
     const f = STATE.final;
-    const head = `<div class="section-head"><h2>🏆 La Final</h2><p>Apuesta el <b>marcador exacto</b> y el <b>1X2</b> de la final, y el <b>campeón</b> del Mundial. Se envía una sola vez.</p></div>`;
+    const head = `<div class="section-head"><h2>🏆 La Final</h2><p>Apuesta el <b>marcador exacto</b>. El campeón se deduce del marcador; si pronosticas empate, eliges quién levanta la copa. Se envía una sola vez.</p></div>`;
     if (!f.teams) return head + `<div class="empty">Se abrirá cuando se conozcan los dos finalistas (tras las semifinales).</div>`;
     const A = f.teams.home, B = f.teams.away;
     const champName = (code) => code === A.code ? A.name : (code === B.code ? B.name : '—');
-    const rules = `<div class="notice info">Reglas: <b>${f.rules.exactScore} pts</b> exacto · <b>${f.rules.sign} pt</b> 1X2 · <b>+${f.rules.championBonus} pts</b> por el campeón (incluye prórroga/penaltis).</div>`;
+    const rules = `<div class="notice info">Reglas: <b>${f.rules.exactScore} pts</b> por marcador exacto y <b>+${f.rules.championBonus} pts</b> por acertar el campeón.</div>`;
     if (f.submitted) {
       let res = '';
       if (f.actual) {
-        const ps = f.your.score, as = f.actual.score, sg = (h, a) => h > a ? '1' : h < a ? '2' : 'X';
+        const ps = f.your.score, as = f.actual.score;
         const exact = ps.home === as.home && ps.away === as.away;
-        const signHit = sg(ps.home, ps.away) === sg(as.home, as.away);
         const champHit = f.your.champion && f.actual.winner && f.your.champion === f.actual.winner;
-        res = `<div class="notice ${exact || signHit || champHit ? 'ok' : 'warn'}">Final real: ${as.home}-${as.away}, campeón ${esc(champName(f.actual.winner))}. ${exact ? '✓ exacto' : (signHit ? '✓ 1X2' : '✗ marcador')}${champHit ? ' · ✓ campeón' : ''}</div>`;
+        res = `<div class="notice ${exact || champHit ? 'ok' : 'warn'}">Final real: ${as.home}-${as.away}, campeón ${esc(champName(f.actual.winner))}. ${exact ? '✓ marcador exacto' : '✗ marcador exacto'}${champHit ? ' · ✓ campeón' : ''}</div>`;
       }
       return head + `<div class="notice ok">Tu apuesta: <b>${esc(A.name)} ${f.your.score.home}-${f.your.score.away} ${esc(B.name)}</b> · campeón: <b>${esc(champName(f.your.champion))}</b> (enviada ${fmt(f.submittedAt)}).</div>` + res + finalCard(A, B, f);
     }
     if (!f.open) return head + `<div class="notice info">La apuesta de la final está cerrada.</div>` + finalCard(A, B, f);
-    return head + rules + `<div class="notice warn">⚠️ Una sola vez. Pon el marcador y elige el campeón.</div>` + finalForm(A, B);
+    return head + rules + `<div class="notice warn">⚠️ Una sola vez. Pon el marcador; solo tendrás que elegir campeón si marcas empate.</div>` + finalForm(A, B);
   }
 
   // ----------------------------------------------------------- MVP ---------
@@ -443,7 +482,12 @@
         return;
       }
       const fin = e.target.closest('[data-final-side]');
-      if (fin) { ui.finalScore = ui.finalScore || {}; ui.finalScore[fin.dataset.finalSide] = fin.value; }
+      if (fin) {
+        ui.finalScore = ui.finalScore || {};
+        ui.finalScore[fin.dataset.finalSide] = fin.value;
+        if (!finalScoreDraw(ui.finalScore)) ui.finalChamp = null;
+        syncFinalForm();
+      }
     });
 
     root.addEventListener('submit', async (e) => {
