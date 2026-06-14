@@ -14,7 +14,7 @@
     { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 
   let STATE = null, ME = null;
-  const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null, mvpPick: null, finalChamp: null, finalScore: {} };
+  const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null, testPhases: null, mvpPick: null, finalChamp: null, finalScore: {} };
 
   async function api(path, opts = {}) {
     const r = await fetch(APP_BASE + '/api' + path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -52,8 +52,13 @@
   // ------------------------------------------------------- App shell -------
   function render() {
     const s = STATE;
-    const nav = [['ranking', '🏆 Clasificación'], ['grupos', '📝 Grupos'], ['llave', '🗝️ Llave'], ['final', '🏆 Final'], ['mvp', '⭐ MVP'], ['cuenta', '👤 Cuenta']];
+    const nav = [['ranking', '🏆 Clasificación'], ['grupos', '📝 Grupos']];
+    if (ME.isAdmin || s.bracket.open || s.bracket.submitted) nav.push(['llave', '🗝️ Llave']);
+    if (ME.isAdmin || (s.final.teams && (s.final.open || s.final.submitted))) nav.push(['final', '🏆 Final']);
+    if (ME.isAdmin || s.mvp.open || s.mvp.submitted) nav.push(['mvp', '⭐ MVP']);
+    nav.push(['cuenta', '👤 Cuenta']);
     if (ME.isAdmin) nav.push(['admin', '⚙️ Admin']);
+    if (!nav.some(([k]) => k === ui.tab)) ui.tab = 'ranking';
     const navHtml = nav.map(([k, l]) => `<button class="nav-btn ${ui.tab === k ? 'active' : ''}" data-action="tab" data-tab="${k}">${l}</button>`).join('');
     let content = '';
     if (ui.tab === 'ranking') content = renderRanking();
@@ -148,7 +153,7 @@
     const g = STATE.group;
     const head = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Predice el marcador de cada partido. Se envía <b>todo a la vez y una sola vez</b>.</p></div>`;
     const extra = STATE.rules.group.sign > 0 ? `, y <b>${STATE.rules.group.sign} pt</b> extra por el 1X2` : '';
-    const rules = `<div class="notice info">Reglas: <b>${STATE.rules.group.exactScore} pts</b> por marcador exacto y <b>${STATE.rules.group.signPartial} pts</b> por acertar solo el ganador/empate${extra}.</div>`;
+    const rules = `<div class="notice info">Reglas: <b>${STATE.rules.group.exactScore} pts</b> por marcador exacto y <b>${STATE.rules.group.signPartial} pts</b> por acertar solo el ganador/empate${extra}. Ejemplo: si el partido acaba 2-1, poner 2-1 da ${STATE.rules.group.exactScore} pts, poner 1-0 da ${STATE.rules.group.signPartial} pts y poner 0-1 da 0 pts.</div>`;
     const standings = renderStandings(g.standings);
 
     if (g.submitted) {
@@ -235,7 +240,7 @@
     return `<div class="bracket-scroll"><div class="bracket">${colHtml}</div></div>${champ}`;
   }
   function rulesBracket() {
-    return `<div class="notice info">Reglas de la llave: <b>${STATE.rules.bracket.perWinner} pts</b> por cada cruce que aciertes (igual en todas las rondas) y <b>+${STATE.rules.bracket.top4Bonus} pts</b> extra por cada semifinalista (top 4) acertado.</div>`;
+    return `<div class="notice info">Reglas de la llave: <b>${STATE.rules.bracket.perWinner} pts</b> por cada cruce acertado y <b>+${STATE.rules.bracket.top4Bonus} pts</b> por cada semifinalista acertado. Ejemplo: eliges a España en un cruce y avanza, +${STATE.rules.bracket.perWinner}; si además la metiste entre los 4 semifinalistas reales, +${STATE.rules.bracket.top4Bonus} extra.</div>`;
   }
   function renderBracket() {
     const b = STATE.bracket;
@@ -329,7 +334,7 @@
     if (!f.teams) return head + `<div class="empty">Se abrirá cuando se conozcan los dos finalistas (tras las semifinales).</div>`;
     const A = f.teams.home, B = f.teams.away;
     const champName = (code) => code === A.code ? A.name : (code === B.code ? B.name : '—');
-    const rules = `<div class="notice info">Reglas: <b>${f.rules.exactScore} pts</b> por marcador exacto y <b>+${f.rules.championBonus} pts</b> por acertar el campeón.</div>`;
+    const rules = `<div class="notice info">Reglas: <b>${f.rules.exactScore} pts</b> por marcador exacto y <b>+${f.rules.championBonus} pts</b> por acertar el campeón. Ejemplo: pones 2-1 y queda 1-0, no hay exacto, pero si gana el equipo que pusiste como ganador sumas ${f.rules.championBonus} pts. Si pones empate, eliges quién levanta la copa.</div>`;
     if (f.submitted) {
       let res = '';
       if (f.actual) {
@@ -357,19 +362,20 @@
   function renderMvp() {
     const m = STATE.mvp;
     const head = `<div class="section-head"><h2>⭐ Jugador del torneo (MVP)</h2><p>Apuesta por el MVP entre los 10 jugadores más destacados. Se envía <b>una sola vez</b>.</p></div>`;
+    const rules = `<div class="notice info">Reglas: <b>${m.points} pts</b> si aciertas el MVP oficial del torneo. Ejemplo: eliges a Mbappé y termina siendo MVP, sumas ${m.points} pts; si gana otro jugador, sumas 0.</div>`;
     if (m.submitted) {
       const pick = m.candidates.find(p => p.id === m.yourPick);
       let res = '';
       if (m.actual) res = (m.actual === m.yourPick)
         ? `<div class="notice ok">✓ ¡Acertaste el MVP! +${m.points} pts</div>`
         : `<div class="notice warn">Esta vez no acertaste el MVP.</div>`;
-      return head + `<div class="notice ok">Tu apuesta: <b>${esc(pick ? pick.name : '—')}</b> (enviada ${fmt(m.submittedAt)}). No se puede cambiar.</div>` + res + mvpGrid(m, null);
+      return head + rules + `<div class="notice ok">Tu apuesta: <b>${esc(pick ? pick.name : '—')}</b> (enviada ${fmt(m.submittedAt)}). No se puede cambiar.</div>` + res + mvpGrid(m, null);
     }
     if (!m.open) {
       const why = (m.window && m.window.passedDeadline) ? 'La apuesta de MVP ya está cerrada.' : 'Se abrirá en la fase eliminatoria (cuando terminen los grupos).';
-      return head + `<div class="notice info">${why} Estos son los 10 candidatos:</div>` + mvpGrid(m, null);
+      return head + rules + `<div class="notice info">${why} Estos son los 10 candidatos:</div>` + mvpGrid(m, null);
     }
-    return head + `<div class="notice info">+${m.points} pts si aciertas el MVP del torneo.</div>`
+    return head + rules
       + `<div class="notice warn">⚠️ Una sola vez. Elige un jugador y envía.</div>`
       + mvpGrid(m, ui.mvpPick)
       + `<div class="sticky-submit"><span class="sub">${ui.mvpPick ? '1 jugador elegido' : 'elige un jugador'}</span>
@@ -392,11 +398,15 @@
   // ---------------------------------------------------------- Admin --------
   function renderAdmin() {
     const users = ui.adminUsers || [];
+    const test = ui.testPhases || { phases: [], active: null };
     const rows = users.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.username)}</td><td>${u.isAdmin ? '👑' : ''}</td>
       <td class="row-actions">
         <button class="btn sm" data-action="admin-reset" data-user="${esc(u.username)}">Reset clave</button>
         ${u.isAdmin ? '' : `<button class="btn sm danger" data-action="admin-delete" data-user="${esc(u.username)}">Borrar</button>`}
       </td></tr>`).join('');
+    const phaseButtons = test.phases.map(p =>
+      `<button class="btn sm ${test.active && test.active.id === p.id ? 'primary' : ''}" data-action="admin-test-phase" data-phase="${esc(p.id)}" title="${esc(p.description)}">${esc(p.name)}</button>`
+    ).join('');
     return `<div class="section-head"><h2>⚙️ Administración</h2><p>Crea cuentas para tus amigos y gestiona resultados.</p></div>
       <div class="grid2">
         <div class="card"><h3 class="group-title">Crear usuario</h3>
@@ -411,13 +421,22 @@
           <p class="sub">Descarga partidos y resultados reales. La llave se rellenará al terminar los grupos.</p>
           <button class="btn" data-action="admin-refresh">↻ Actualizar resultados ahora</button>
         </div>
+        <div class="card"><h3 class="group-title">Modo pruebas</h3>
+          <p class="sub">Activa datos ficticios para validar fases sin cambiar predicciones. Estado: <b>${esc(test.active ? test.active.name : 'inactivo')}</b>.</p>
+          <div class="row-actions" style="flex-wrap:wrap">${phaseButtons || '<span class="sub">Cargando fases…</span>'}</div>
+          <button class="btn sm danger" style="margin-top:.6rem" data-action="admin-test-clear">Volver a datos reales</button>
+        </div>
       </div>
       <div class="card" style="margin-top:1rem"><h3 class="group-title">Usuarios</h3>
         <table class="user-list"><thead><tr><th>Nombre</th><th>Usuario</th><th></th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="4" class="sub">Cargando…</td></tr>'}</tbody></table>
       </div>`;
   }
   async function refreshAdmin() {
-    try { const { users } = await api('/admin/users'); ui.adminUsers = users; }
+    try {
+      const [{ users }, phases] = await Promise.all([api('/admin/users'), api('/admin/test-phases')]);
+      ui.adminUsers = users;
+      ui.testPhases = phases;
+    }
     catch (e) { setNotice(e.message, 'err'); }
     render();
   }
@@ -464,6 +483,12 @@
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'admin-refresh') {
         try { const r = await api('/admin/refresh', { method: 'POST' }); setNotice(`✓ ${r.count} partidos (${r.finished} finalizados).`, 'ok'); await loadState(); ui.tab = 'admin'; render(); refreshAdmin(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (a === 'admin-test-phase') {
+        try { const r = await api('/admin/test-phase', { method: 'POST', body: JSON.stringify({ phaseId: t.dataset.phase }) }); setNotice(`✓ Modo prueba activo: ${r.phase.name}.`, 'ok'); await loadState(); ui.tab = 'admin'; render(); refreshAdmin(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (a === 'admin-test-clear') {
+        try { const r = await api('/admin/test-phase/clear', { method: 'POST' }); setNotice(r.restored === 'api' ? '✓ Datos reales restaurados desde la API.' : '✓ Modo prueba desactivado; usando datos de ejemplo.', 'ok'); await loadState(); ui.tab = 'admin'; render(); refreshAdmin(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'admin-reset') {
         const pw = prompt('Nueva contraseña para ' + t.dataset.user + ':');

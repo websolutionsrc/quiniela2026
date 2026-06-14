@@ -8,12 +8,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
 
 import { CONFIG } from './config.mjs';
-import { db, saveDB } from './lib/store.mjs';
+import { db, saveDB, writeResults, clearResults } from './lib/store.mjs';
 import * as Auth from './lib/auth.mjs';
 import * as Data from './lib/data.mjs';
 import * as Score from './lib/scoring.mjs';
 import { buildTree, validateBracket } from './lib/bracket.mjs';
 import { flagUrl, flagUrlFromCode } from './lib/flags.mjs';
+import { TEST_PHASES, buildTestPhase } from './sample/test-phases.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, 'public');
@@ -72,6 +73,10 @@ async function refreshResultsFromAPI(source = 'manual') {
 function startResultsRefreshTimer() {
   if (!CONFIG.api.token) return;
   const run = async (source) => {
+    if (Data.getData().testMode) {
+      console.log(`[resultados:${source}] omitido: modo prueba activo.`);
+      return;
+    }
     try { await refreshResultsFromAPI(source); }
     catch (e) { console.warn(`[resultados:${source}] ${e.message}`); }
   };
@@ -325,6 +330,31 @@ async function handleApi(req, res, pathname) {
     if (pathname === '/api/admin/refresh' && method === 'POST') {
       try { const r = await refreshResultsFromAPI('manual'); return sendJSON(res, 200, { ok: true, ...r }); }
       catch (e) { return sendJSON(res, 400, { error: e.message }); }
+    }
+    if (pathname === '/api/admin/test-phases' && method === 'GET') {
+      const data = Data.getData();
+      return sendJSON(res, 200, {
+        phases: TEST_PHASES,
+        active: data.testMode ? { id: data.testPhase, name: data.testPhaseName, source: data.source } : null,
+      });
+    }
+    if (pathname === '/api/admin/test-phase' && method === 'POST') {
+      const b = await readBody(req);
+      try {
+        const payload = buildTestPhase(String(b.phaseId || ''));
+        writeResults(payload);
+        return sendJSON(res, 200, { ok: true, phase: { id: payload.testPhase, name: payload.testPhaseName } });
+      } catch (e) { return sendJSON(res, 400, { error: e.message }); }
+    }
+    if (pathname === '/api/admin/test-phase/clear' && method === 'POST') {
+      try {
+        clearResults();
+        if (CONFIG.api.token) {
+          const r = await refreshResultsFromAPI('manual');
+          return sendJSON(res, 200, { ok: true, restored: 'api', ...r });
+        }
+        return sendJSON(res, 200, { ok: true, restored: 'sample' });
+      } catch (e) { return sendJSON(res, 400, { error: e.message }); }
     }
   }
 
