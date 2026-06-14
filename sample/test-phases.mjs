@@ -20,6 +20,18 @@ const groupScores = [
   FT(0, 1), FT(1, 1), FT(3, 0), FT(0, 2), FT(2, 2), FT(1, 0),
   FT(2, 1), FT(1, 1), FT(3, 2), FT(0, 1), FT(1, 3), FT(2, 0),
 ];
+const testMvpCandidates = [
+  { id: 'test-mvp-1', name: 'Kylian Mbappé', team: 'Francia', code: 'FRA', goals: 5, source: 'test' },
+  { id: 'test-mvp-2', name: 'Lionel Messi', team: 'Argentina', code: 'ARG', goals: 4, source: 'test' },
+  { id: 'test-mvp-3', name: 'Harry Kane', team: 'Inglaterra', code: 'ENG', goals: 4, source: 'test' },
+  { id: 'test-mvp-4', name: 'Lamine Yamal', team: 'España', code: 'ESP', goals: 3, source: 'test' },
+  { id: 'test-mvp-5', name: 'Vinícius Júnior', team: 'Brasil', code: 'BRA', goals: 3, source: 'test' },
+  { id: 'test-mvp-6', name: 'Cristiano Ronaldo', team: 'Portugal', code: 'POR', goals: 3, source: 'test' },
+  { id: 'test-mvp-7', name: 'Jude Bellingham', team: 'Inglaterra', code: 'ENG', goals: 2, source: 'test' },
+  { id: 'test-mvp-8', name: 'Jamal Musiala', team: 'Alemania', code: 'GER', goals: 2, source: 'test' },
+  { id: 'test-mvp-9', name: 'Christian Pulisic', team: 'Estados Unidos', code: 'USA', goals: 2, source: 'test' },
+  { id: 'test-mvp-10', name: 'Lautaro Martínez', team: 'Argentina', code: 'ARG', goals: 2, source: 'test' },
+];
 
 function meta(id, testNow, matches, extra = {}) {
   const phase = TEST_PHASES.find(x => x.id === id);
@@ -85,7 +97,13 @@ export function buildTestPhase(id) {
 
   const groupMatches = finishedGroups();
   if (id === 'bracket_open') {
-    return meta(id, '2026-06-27T12:00:00Z', groupMatches, { bracketDemo: clone(SAMPLE.bracketDemo) });
+    return meta(id, '2026-06-27T12:00:00Z', groupMatches, {
+      bracketDemo: clone(SAMPLE.bracketDemo),
+      mvpCandidates: clone(testMvpCandidates),
+      mvpCandidatesLocked: true,
+      mvpCandidatesAt: '2026-06-27T12:00:00Z',
+      mvpCandidatesSource: 'test',
+    });
   }
 
   const { matches: koMatches, teamByCode } = knockoutThroughSemis();
@@ -100,8 +118,20 @@ export function buildTestPhase(id) {
   };
 
   if (id === 'final_open') {
-    return meta(id, '2026-07-18T12:00:00Z', [...groupMatches, ...koMatches, { ...finalBase, status: 'TIMED', score: null }], { bracketDemo: clone(SAMPLE.bracketDemo) });
+    return meta(id, '2026-07-18T12:00:00Z', [...groupMatches, ...koMatches, { ...finalBase, status: 'TIMED', score: null }], {
+      bracketDemo: clone(SAMPLE.bracketDemo),
+      mvpCandidates: clone(testMvpCandidates),
+      mvpCandidatesLocked: true,
+      mvpCandidatesAt: '2026-06-27T12:00:00Z',
+      mvpCandidatesSource: 'test',
+    });
   }
 
-  return meta(id, '2026-07-20T12:00:00Z', [...groupMatches, ...koMatches, { ...finalBase, status: 'FINISHED', score: FT(1, 0), winner: 'ARG' }], { bracketDemo: clone(SAMPLE.bracketDemo) });
+  return meta(id, '2026-07-20T12:00:00Z', [...groupMatches, ...koMatches, { ...finalBase, status: 'FINISHED', score: FT(1, 0), winner: 'ARG' }], {
+    bracketDemo: clone(SAMPLE.bracketDemo),
+    mvpCandidates: clone(testMvpCandidates),
+    mvpCandidatesLocked: true,
+    mvpCandidatesAt: '2026-06-27T12:00:00Z',
+    mvpCandidatesSource: 'test',
+  });
 }

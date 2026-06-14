@@ -67,7 +67,8 @@ function publicLoginError(e) {
 }
 async function refreshResultsFromAPI(source = 'manual') {
   const r = await Data.fetchFromAPI();
-  console.log(`[resultados:${source}] ${r.count} partidos (${r.finished} finalizados).`);
+  const mvpInfo = r.mvpCandidates ? ` · MVP ${r.mvpCandidates} candidatos` : '';
+  console.log(`[resultados:${source}] ${r.count} partidos (${r.finished} finalizados)${mvpInfo}.`);
   return r;
 }
 function startResultsRefreshTimer() {
@@ -110,6 +111,7 @@ function buildState(user) {
   const mvpPred = db.predictions[user.username]?.mvp || {};
   const finalPred = db.predictions[user.username]?.final || {};
   const gPicks = groupPred.picks || {};
+  const mvpCandidates = Data.mvpCandidates();
 
   // --- Grupos ---
   const allGroup = Data.groupMatches().slice().sort((a, b) =>
@@ -159,7 +161,10 @@ function buildState(user) {
       yourPick: mvpPred.playerId || null,
       actual: CONFIG.mvp.actual || null,
       points: CONFIG.mvp.points,
-      candidates: CONFIG.mvp.candidates.map(p => ({ ...p, flag: flagUrlFromCode(p.code) })),
+      candidates: mvpCandidates.map(p => ({ ...p, flag: flagUrlFromCode(p.code) })),
+      candidatesSource: data.mvpCandidatesSource || (data.testMode ? 'test' : 'config'),
+      candidatesLocked: !!data.mvpCandidatesLocked,
+      candidatesAt: data.mvpCandidatesAt || null,
     },
     final: (() => {
       const fw = Data.finalWindow();
@@ -216,6 +221,21 @@ async function handleApi(req, res, pathname) {
     try { Auth.setPassword(user.username, b.new); return sendJSON(res, 200, { ok: true }); }
     catch (e) { return sendJSON(res, 400, { error: e.message }); }
   }
+  if (pathname === '/api/account/name' && method === 'POST') {
+    const b = await readBody(req);
+    const name = String(b.name || '').trim();
+    if (name.length < 2 || name.length > 40)
+      return sendJSON(res, 400, { error: 'El nombre debe tener entre 2 y 40 caracteres.' });
+    const previous = user.name;
+    try {
+      user.name = name;
+      saveDB();
+      return sendJSON(res, 200, { ok: true, me: { username: user.username, name: user.name, isAdmin: !!user.isAdmin } });
+    } catch (e) {
+      user.name = previous;
+      return sendJSON(res, 400, { error: publicLoginError(e) });
+    }
+  }
 
   // --- Enviar predicciones de grupos (una sola vez) ---
   if (pathname === '/api/group' && method === 'POST') {
@@ -271,7 +291,7 @@ async function handleApi(req, res, pathname) {
     const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
     if (!win.open) return sendJSON(res, 403, { error: 'La apuesta de MVP aún no está abierta.' });
     if (pred.mvp && pred.mvp.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu apuesta de MVP.' });
-    const valid = CONFIG.mvp.candidates.some(p => p.id === b.playerId);
+    const valid = Data.mvpCandidates().some(p => p.id === b.playerId);
     if (!valid) return sendJSON(res, 400, { error: 'Jugador no válido.' });
     pred.mvp = { submitted: true, at: new Date().toISOString(), playerId: b.playerId };
     saveDB();

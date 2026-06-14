@@ -60,9 +60,10 @@ export const CONFIG = {
   ],
 
   // --- MVP / Jugador del torneo --------------------------------------------
-  // Se abre con la fase eliminatoria. Cada usuario apuesta por UNO.
-  // Edita la lista (los 10 más destacados) y pon `actual` con el id ganador
-  // cuando se conozca para repartir los puntos.
+  // Se abre con la fase eliminatoria. En producción los 10 candidatos se
+  // congelan desde football-data.org/scorers cuando terminan los grupos.
+  // `candidates` queda como respaldo si no hay API o en desarrollo local.
+  // Pon `actual` con el id ganador cuando se conozca para repartir puntos.
   mvp: {
     points: 10,        // puntos por acertar el MVP
     actual: null,      // id del jugador ganador (p.ej. 'p2'); null hasta conocerse

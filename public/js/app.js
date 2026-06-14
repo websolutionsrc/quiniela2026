@@ -159,7 +159,7 @@
     if (g.submitted) {
       const blocks = Object.entries(byGroup(g.matches)).sort().map(([k, ms]) =>
         `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(groupRowReadOnly).join('')}</div>`).join('');
-      return head + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + blocks + standings;
+      return head + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + standings + blocks;
     }
     if (g.open) {
       const up = new Set(g.upcomingIds);
@@ -356,13 +356,17 @@
       const flag = flagImg(p.flag, 'flag flag-lg');
       const click = (m.open && !m.submitted) ? ` data-action="mvp-pick" data-player="${esc(p.id)}"` : '';
       const star = m.actual === p.id ? ' ⭐' : '';
-      return `<div class="mvp-card ${sel ? 'sel' : ''}"${click}>${flag}<div><div class="mvp-name">${esc(p.name)}${star}</div><div class="sub">${esc(p.team)}</div></div></div>`;
+      const goals = p.goals != null ? ` · ${p.goals} goles` : '';
+      return `<div class="mvp-card ${sel ? 'sel' : ''}"${click}>${flag}<div><div class="mvp-name">${esc(p.name)}${star}</div><div class="sub">${esc(p.team)}${goals}</div></div></div>`;
     }).join('')}</div>`;
   }
   function renderMvp() {
     const m = STATE.mvp;
-    const head = `<div class="section-head"><h2>⭐ Jugador del torneo (MVP)</h2><p>Apuesta por el MVP entre los 10 jugadores más destacados. Se envía <b>una sola vez</b>.</p></div>`;
-    const rules = `<div class="notice info">Reglas: <b>${m.points} pts</b> si aciertas el MVP oficial del torneo. Ejemplo: eliges a Mbappé y termina siendo MVP, sumas ${m.points} pts; si gana otro jugador, sumas 0.</div>`;
+    const source = m.candidatesSource === 'api-scorers'
+      ? 'Candidatos congelados desde football-data.org al abrirse la llave.'
+      : (m.candidatesSource === 'test' ? 'Candidatos ficticios del modo pruebas.' : 'Candidatos manuales de respaldo.');
+    const head = `<div class="section-head"><h2>⭐ Jugador del torneo (MVP)</h2><p>Apuesta por el MVP entre los 10 goleadores de la fase de grupos. Se envía <b>una sola vez</b>.</p></div>`;
+    const rules = `<div class="notice info">Reglas: <b>${m.points} pts</b> si aciertas el MVP oficial del torneo. ${source} Ejemplo: eliges a un goleador de la lista y termina siendo MVP, sumas ${m.points} pts; si gana otro jugador, sumas 0.</div>`;
     if (m.submitted) {
       const pick = m.candidates.find(p => p.id === m.yourPick);
       let res = '';
@@ -373,7 +377,7 @@
     }
     if (!m.open) {
       const why = (m.window && m.window.passedDeadline) ? 'La apuesta de MVP ya está cerrada.' : 'Se abrirá en la fase eliminatoria (cuando terminen los grupos).';
-      return head + rules + `<div class="notice info">${why} Estos son los 10 candidatos:</div>` + mvpGrid(m, null);
+      return head + rules + `<div class="notice info">${why} Estos son los candidatos previstos:</div>` + mvpGrid(m, null);
     }
     return head + rules
       + `<div class="notice warn">⚠️ Una sola vez. Elige un jugador y envía.</div>`
@@ -384,7 +388,13 @@
 
   // --------------------------------------------------------- Cuenta --------
   function renderAccount() {
-    return `<div class="section-head"><h2>👤 Mi cuenta</h2><p>Usuario: <b>${esc(ME.username)}</b>. Aquí solo puedes cambiar tu contraseña.</p></div>
+    return `<div class="section-head"><h2>👤 Mi cuenta</h2><p>Usuario: <b>${esc(ME.username)}</b>. Puedes cambiar tu nombre visible y tu contraseña.</p></div>
+      <div class="card" style="max-width:420px;margin-bottom:1rem">
+        <form id="account-name-form" autocomplete="off">
+          <label>Nombre a mostrar<input name="name" required minlength="2" maxlength="40" value="${esc(ME.name)}"></label>
+          <button class="btn primary block" type="submit">Guardar nombre</button>
+        </form>
+      </div>
       <div class="card" style="max-width:420px">
         <form id="account-form" autocomplete="off">
           <label>Contraseña actual<input name="current" type="password" required></label>
@@ -482,7 +492,7 @@
         try { await api('/final', { method: 'POST', body: JSON.stringify({ score: ui.finalScore, champion: ui.finalChamp }) }); ui.finalChamp = null; ui.finalScore = {}; setNotice('✓ Apuesta de la final enviada.', 'ok'); await loadState(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'admin-refresh') {
-        try { const r = await api('/admin/refresh', { method: 'POST' }); setNotice(`✓ ${r.count} partidos (${r.finished} finalizados).`, 'ok'); await loadState(); ui.tab = 'admin'; render(); refreshAdmin(); }
+        try { const r = await api('/admin/refresh', { method: 'POST' }); setNotice(`✓ ${r.count} partidos (${r.finished} finalizados)${r.mvpCandidates ? ` · MVP ${r.mvpCandidates} candidatos` : ''}.`, 'ok'); await loadState(); ui.tab = 'admin'; render(); refreshAdmin(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'admin-test-phase') {
         try { const r = await api('/admin/test-phase', { method: 'POST', body: JSON.stringify({ phaseId: t.dataset.phase }) }); setNotice(`✓ Modo prueba activo: ${r.phase.name}.`, 'ok'); await loadState(); ui.tab = 'admin'; render(); refreshAdmin(); }
@@ -529,6 +539,10 @@
         const d = new FormData(f);
         if (d.get('new') !== d.get('confirm')) { setNotice('Las contraseñas nuevas no coinciden.', 'err'); render(); return; }
         try { await api('/account/password', { method: 'POST', body: JSON.stringify({ current: d.get('current'), new: d.get('new') }) }); setNotice('✓ Contraseña cambiada.', 'ok'); render(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (f.id === 'account-name-form') {
+        const d = new FormData(f);
+        try { const r = await api('/account/name', { method: 'POST', body: JSON.stringify({ name: d.get('name') }) }); ME = r.me; if (STATE) STATE.me = r.me; setNotice('✓ Nombre actualizado.', 'ok'); render(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (f.id === 'admin-create-form') {
         const d = new FormData(f);
