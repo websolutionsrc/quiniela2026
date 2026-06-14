@@ -50,6 +50,12 @@ function stripMountedPath(pathname) {
   }
   return pathname;
 }
+function mountedBase(pathname) {
+  const parts = pathname.split('/').filter(Boolean);
+  if (parts.length === 1 && !parts[0].includes('.')) return '/' + parts[0];
+  if (parts.length > 1 && ['api', 'css', 'js'].includes(parts[1])) return '/' + parts[0];
+  return '';
+}
 function publicLoginError(e) {
   const msg = e?.message || '';
   if (/EPERM|EACCES|db\.json|\.tmp/i.test(msg)) {
@@ -311,20 +317,25 @@ async function handleApi(req, res, pathname) {
 }
 
 // --------------------------------------------------------- estáticos -------
+async function serveIndex(res, base = '') {
+  const html = await readFile(join(PUBLIC, 'index.html'), 'utf8');
+  const body = html.replaceAll('%APP_BASE%', base);
+  res.writeHead(200, { 'Content-Type': MIME['.html'] });
+  res.end(body);
+}
 async function serveStatic(req, res, pathname) {
   let rel = pathname === '/' ? '/index.html' : pathname;
   const full = normalize(join(PUBLIC, rel));
   if (!full.startsWith(PUBLIC)) { res.writeHead(403); return res.end('Forbidden'); }
   try {
+    if (rel === '/index.html') return await serveIndex(res, mountedBase(decodeURIComponent((req.url || '/').split('?')[0])));
     const body = await readFile(full);
     res.writeHead(200, { 'Content-Type': MIME[extname(full).toLowerCase()] || 'application/octet-stream' });
     res.end(body);
   } catch {
     // SPA fallback a index.html para rutas desconocidas que no sean de API.
     try {
-      const body = await readFile(join(PUBLIC, 'index.html'));
-      res.writeHead(200, { 'Content-Type': MIME['.html'] });
-      res.end(body);
+      await serveIndex(res, mountedBase(decodeURIComponent((req.url || '/').split('?')[0])));
     } catch { res.writeHead(404); res.end('No encontrado'); }
   }
 }
