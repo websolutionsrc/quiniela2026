@@ -95,7 +95,7 @@
       ${rows.map(r => `<tr class="${r.username === ME.username ? 'me' : ''}">
         <td class="rank">${medal(r.rank)}</td>
         <td>${esc(r.name)}${r.username === ME.username ? ' <span class="youtag">tú</span>' : ''}
-          <div class="sub">exactos ${r.group.exactHits} · 1X2 ${r.group.signHits} · llave ${r.bracket.correct} · top4 ${r.bracket.top4} · final ${r.final.points} · MVP ${r.mvp.points}${r.mvp.hit ? ' ⭐' : ''}</div></td>
+          <div class="sub">grupos ${r.group.combined} pts (${r.group.exactHits} exactos, ${r.group.winnerHits || 0} ganador/empate) · llave ${r.bracket.points} pts (${r.bracket.correct} cruces, ${r.bracket.top4} top4) · final ${r.final.points} pts · MVP ${r.mvp.points} pts${r.mvp.hit ? ' ⭐' : ''}</div></td>
         <td class="pts-cell">${r.total}</td><td>${r.group.combined}</td><td>${r.bracket.points}</td></tr>`).join('')}
       </tbody></table>`;
   }
