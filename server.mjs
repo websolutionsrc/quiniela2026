@@ -43,6 +43,20 @@ function currentUser(req) {
   const token = Auth.parseCookies(req)[Auth.SESSION_COOKIE];
   return { token, user: Auth.userFromToken(token) };
 }
+function stripMountedPath(pathname) {
+  const parts = pathname.split('/').filter(Boolean);
+  if (parts.length > 1 && ['api', 'css', 'js'].includes(parts[1])) {
+    return '/' + parts.slice(1).join('/');
+  }
+  return pathname;
+}
+function publicLoginError(e) {
+  const msg = e?.message || '';
+  if (/EPERM|EACCES|db\.json|\.tmp/i.test(msg)) {
+    return 'No se pudo iniciar sesión porque el servidor no pudo guardar la sesión. Revisa permisos de la carpeta data o reinicia el servidor.';
+  }
+  return msg || 'No se pudo iniciar sesión.';
+}
 
 // --------------------------------------------------------- estado/API ------
 const wf = (t) => t ? { ...t, flag: flagUrl(t) } : t; // añade la bandera al equipo
@@ -151,7 +165,7 @@ async function handleApi(req, res, pathname) {
       const u = Auth.userFromToken(t);
       return sendJSON(res, 200, { ok: true, me: { username: u.username, name: u.name, isAdmin: !!u.isAdmin } },
         { 'Set-Cookie': Auth.sessionCookie(t, req) });
-    } catch (e) { return sendJSON(res, 401, { error: e.message }); }
+    } catch (e) { return sendJSON(res, 401, { error: publicLoginError(e) }); }
   }
   if (pathname === '/api/logout' && method === 'POST') {
     Auth.logout(token);
@@ -318,7 +332,7 @@ async function serveStatic(req, res, pathname) {
 // --------------------------------------------------------- servidor --------
 const server = createServer(async (req, res) => {
   try {
-    const pathname = decodeURIComponent((req.url || '/').split('?')[0]);
+    const pathname = stripMountedPath(decodeURIComponent((req.url || '/').split('?')[0]));
     if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname);
     return await serveStatic(req, res, pathname);
   } catch (e) {

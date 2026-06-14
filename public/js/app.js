@@ -3,6 +3,11 @@
 // ============================================================================
 (function () {
   const $app = () => document.getElementById('app');
+  const APP_BASE = (() => {
+    const src = document.currentScript?.getAttribute('src') || 'js/app.js';
+    const url = new URL(src, window.location.href);
+    return url.pathname.replace(/\/js\/app\.js$/, '');
+  })();
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
     c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fmt = (iso) => new Date(iso).toLocaleString('es-ES',
@@ -12,7 +17,7 @@
   const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null, mvpPick: null, finalChamp: null, finalScore: {} };
 
   async function api(path, opts = {}) {
-    const r = await fetch('/api' + path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
+    const r = await fetch(APP_BASE + '/api' + path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
     let data = {}; try { data = await r.json(); } catch {}
     if (!r.ok) throw new Error(data.error || ('Error ' + r.status));
     return data;
@@ -77,7 +82,7 @@
   // -------------------------------------------------------- Ranking --------
   function renderRanking() {
     const rows = STATE.ranking;
-    const head = `<div class="section-head"><h2>🏆 Clasificación</h2><p>Total = puntos de grupos (exacto + 1X2) + puntos de la llave.</p></div>`;
+    const head = `<div class="section-head"><h2>🏆 Clasificación</h2><p>Total = grupos + llave + final + MVP.</p></div>`;
     if (!rows.length) return head + `<div class="empty">Aún no hay jugadores con datos.</div>`;
     const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : r;
     return head + `
