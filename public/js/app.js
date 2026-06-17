@@ -133,13 +133,13 @@
     if (m.score) { mid = `<span class="goals">${m.score.home}</span><span class="dash">-</span><span class="goals">${m.score.away}</span>`; }
     else { mid = `<span class="goals muted">·</span><span class="dash">-</span><span class="goals muted">·</span>`; }
     if (m.yourPred) {
-      foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span>Tu pronóstico: ${m.yourPred.home}-${m.yourPred.away}`;
+      let points = '';
       if (m.points && m.points.hasResult) {
-        foot += ` · <span class="pts ${m.points.exactHit ? 'hit' : ''}">Exacto +${m.points.exact}</span>`;
-        if (!m.points.exactHit) foot += `<span class="pts ${m.points.signHit ? 'hit' : ''}">Ganador/empate +${m.points.winner || 0}</span>`;
-        if (m.points.sign > 0) foot += `<span class="pts ${m.points.signHit ? 'hit' : ''}">1X2 extra +${m.points.sign}</span>`;
+        points += `<span class="pts ${m.points.exactHit ? 'hit' : ''}">Exacto +${m.points.exact}</span>`;
+        if (!m.points.exactHit) points += `<span class="pts ${m.points.signHit ? 'hit' : ''}">Ganador/empate +${m.points.winner || 0}</span>`;
+        if (m.points.sign > 0) points += `<span class="pts ${m.points.signHit ? 'hit' : ''}">1X2 extra +${m.points.sign}</span>`;
       }
-      foot += `</span>`;
+      foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span class="pred-summary"><span>Tu pronóstico: ${m.yourPred.home}-${m.yourPred.away}</span>${points}</span>`;
     } else {
       foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span class="sub">${m.score ? 'no incluido' : 'pendiente'}</span>`;
     }

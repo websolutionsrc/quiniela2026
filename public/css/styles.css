@@ -111,7 +111,8 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .goals.muted { color: var(--muted); } .goals.live { color: var(--live); }
 .match-foot { grid-area: foot; display: flex; justify-content: space-between; gap: .5rem;
   border-top: 1px dashed var(--line); padding-top: .4rem; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }
-.pts { padding: .05rem .4rem; border-radius: 6px; background: rgba(159,182,194,.12); margin-left: .2rem; }
+.pred-summary { display: flex; justify-content: flex-end; align-items: center; gap: .25rem; flex-wrap: wrap; min-width: 0; }
+.pts { padding: .05rem .4rem; border-radius: 6px; background: rgba(159,182,194,.12); }
 .pts.hit { background: rgba(0,184,148,.25); color: #8ff0d6; font-weight: 700; }
 .standings { width: 100%; border-collapse: collapse; margin-top: .3rem; }
 .standings th, .standings td { padding: .35rem .5rem; border-bottom: 1px solid var(--line); font-size: .85rem; text-align: center; }
