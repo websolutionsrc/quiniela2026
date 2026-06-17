@@ -27,7 +27,9 @@ const MIME = {
   '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
 };
+const MOUNTED_STATIC_PREFIXES = ['api', 'css', 'js', 'img'];
 function sendJSON(res, status, obj, headers = {}) {
   const body = JSON.stringify(obj);
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...headers });
@@ -47,7 +49,7 @@ function currentUser(req) {
 }
 function stripMountedPath(pathname) {
   const parts = pathname.split('/').filter(Boolean);
-  if (parts.length > 1 && ['api', 'css', 'js'].includes(parts[1])) {
+  if (parts.length > 1 && MOUNTED_STATIC_PREFIXES.includes(parts[1])) {
     return '/' + parts.slice(1).join('/');
   }
   return pathname;
@@ -55,7 +57,7 @@ function stripMountedPath(pathname) {
 function mountedBase(pathname) {
   const parts = pathname.split('/').filter(Boolean);
   if (parts.length === 1 && !parts[0].includes('.')) return '/' + parts[0];
-  if (parts.length > 1 && ['api', 'css', 'js'].includes(parts[1])) return '/' + parts[0];
+  if (parts.length > 1 && MOUNTED_STATIC_PREFIXES.includes(parts[1])) return '/' + parts[0];
   return '';
 }
 function publicLoginError(e) {
@@ -67,7 +69,7 @@ function publicLoginError(e) {
 }
 async function refreshResultsFromAPI(source = 'manual') {
   const r = await Data.fetchFromAPI();
-  const mvpInfo = r.mvpCandidates ? ` · MVP ${r.mvpCandidates} candidatos` : '';
+  const mvpInfo = r.mvpCandidates ? ` · Bota de Oro ${r.mvpCandidates} candidatos` : '';
   console.log(`[resultados:${source}] ${r.count} partidos (${r.finished} finalizados)${mvpInfo}.`);
   return r;
 }
@@ -103,6 +105,24 @@ function publicMatch(m, picks, submitted) {
   if (submitted && Data.isFinished(m)) out.points = Score.groupPointsFor(picks[m.id], m);
   return out;
 }
+function prizeInfo() {
+  const players = Object.values(db.users).filter(u => !u.isAdmin).length;
+  const perPlayer = 5;
+  const pot = players * perPlayer;
+  const second = Math.ceil(pot / 4);
+  const first = pot - second;
+  const fw = Data.finalWindow();
+  const closeAt = fw.deadline ? new Date(fw.deadline) : new Date('2026-07-19T18:00:00Z');
+  closeAt.setUTCDate(closeAt.getUTCDate() + 1);
+  return {
+    players,
+    perPlayer,
+    pot,
+    first,
+    second,
+    closeAt: closeAt.toISOString(),
+  };
+}
 
 function buildState(user) {
   const data = Data.getData();
@@ -136,6 +156,7 @@ function buildState(user) {
     fetchedAt: data.fetchedAt || null,
     me: { username: user.username, name: user.name, isAdmin: !!user.isAdmin },
     rules: CONFIG.scoring,
+    prize: prizeInfo(),
     group: {
       open: groupOpen,
       submitted: !!groupPred.submitted,
@@ -159,7 +180,7 @@ function buildState(user) {
       submitted: !!mvpPred.submitted,
       submittedAt: mvpPred.at || null,
       yourPick: mvpPred.playerId || null,
-      actual: CONFIG.mvp.actual || null,
+      actual: Data.actualMvp(),
       points: CONFIG.mvp.points,
       candidates: mvpCandidates.map(p => ({ ...p, flag: flagUrlFromCode(p.code) })),
       candidatesSource: data.mvpCandidatesSource || (data.testMode ? 'test' : 'config'),
@@ -284,13 +305,13 @@ async function handleApi(req, res, pathname) {
     return sendJSON(res, 200, { ok: true });
   }
 
-  // --- Enviar apuesta de MVP (una sola vez) ---
+  // --- Enviar apuesta de Bota de Oro (una sola vez) ---
   if (pathname === '/api/mvp' && method === 'POST') {
     const b = await readBody(req);
     const win = Data.bracketWindow();
     const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
-    if (!win.open) return sendJSON(res, 403, { error: 'La apuesta de MVP aún no está abierta.' });
-    if (pred.mvp && pred.mvp.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu apuesta de MVP.' });
+    if (!win.open) return sendJSON(res, 403, { error: 'La apuesta de Bota de Oro aún no está abierta.' });
+    if (pred.mvp && pred.mvp.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu apuesta de Bota de Oro.' });
     const valid = Data.mvpCandidates().some(p => p.id === b.playerId);
     if (!valid) return sendJSON(res, 400, { error: 'Jugador no válido.' });
     pred.mvp = { submitted: true, at: new Date().toISOString(), playerId: b.playerId };

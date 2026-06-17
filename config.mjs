@@ -59,14 +59,14 @@ export const CONFIG = {
     { key: 'BRACKET', name: 'Eliminatorias (llave)' },
   ],
 
-  // --- MVP / Jugador del torneo --------------------------------------------
-  // Se abre con la fase eliminatoria. En producción los 10 candidatos se
+  // --- Bota de Oro / Goleador del torneo -----------------------------------
+  // Se abre con la fase eliminatoria. En producción los 20 candidatos se
   // congelan desde football-data.org/scorers cuando terminan los grupos.
   // `candidates` queda como respaldo si no hay API o en desarrollo local.
-  // Pon `actual` con el id ganador cuando se conozca para repartir puntos.
+  // Pon `actual` con el id ganador de la Bota de Oro para repartir puntos.
   mvp: {
-    points: 10,        // puntos por acertar el MVP
-    actual: null,      // id del jugador ganador (p.ej. 'p2'); null hasta conocerse
+    points: 10,        // puntos por acertar la Bota de Oro
+    actual: null,      // id del goleador ganador (p.ej. 'p2'); null hasta conocerse
     candidates: [
       { id: 'p1',  name: 'Lionel Messi',     team: 'Argentina',      code: 'ARG' },
       { id: 'p2',  name: 'Kylian Mbappé',    team: 'Francia',        code: 'FRA' },

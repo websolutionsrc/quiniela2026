@@ -32,6 +32,8 @@ body {
 .auth-wrap { max-width: 420px; margin: 7vh auto; padding: 1rem; }
 .brand { text-align: center; margin-bottom: 1.4rem; }
 .brand .ball { font-size: 3rem; }
+.wc26-logo { width: 58px; height: 74px; object-fit: cover; object-position: center; border-radius: 12px;
+  margin: 0 auto .75rem; display: block; box-shadow: 0 8px 20px rgba(0,0,0,.28); }
 .brand h1 { margin: .2rem 0; font-size: 1.6rem; }
 .tagline { color: var(--muted); margin: 0; font-size: .9rem; }
 .card { background: linear-gradient(180deg, var(--panel) 0%, var(--panel2) 100%);

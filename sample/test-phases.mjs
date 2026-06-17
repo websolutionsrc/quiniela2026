@@ -9,7 +9,7 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 
 export const TEST_PHASES = [
   { id: 'groups_open', name: 'Grupos abiertos', description: 'Partidos de grupo pendientes para probar predicciones.' },
-  { id: 'bracket_open', name: 'Llave abierta', description: 'Grupos terminados y cuadro listo para enviar llave/MVP.' },
+  { id: 'bracket_open', name: 'Llave abierta', description: 'Grupos terminados y cuadro listo para enviar llave/Bota de Oro.' },
   { id: 'final_open', name: 'Final abierta', description: 'Finalistas conocidos y apuesta de final disponible.' },
   { id: 'tournament_finished', name: 'Torneo terminado', description: 'Final terminada para validar puntuaciones finales.' },
 ];
@@ -31,6 +31,16 @@ const testMvpCandidates = [
   { id: 'test-mvp-8', name: 'Jamal Musiala', team: 'Alemania', code: 'GER', goals: 2, source: 'test' },
   { id: 'test-mvp-9', name: 'Christian Pulisic', team: 'Estados Unidos', code: 'USA', goals: 2, source: 'test' },
   { id: 'test-mvp-10', name: 'Lautaro Martínez', team: 'Argentina', code: 'ARG', goals: 2, source: 'test' },
+  { id: 'test-mvp-11', name: 'Florian Wirtz', team: 'Alemania', code: 'GER', goals: 2, source: 'test' },
+  { id: 'test-mvp-12', name: 'Rafael Leao', team: 'Portugal', code: 'POR', goals: 2, source: 'test' },
+  { id: 'test-mvp-13', name: 'Julian Alvarez', team: 'Argentina', code: 'ARG', goals: 1, source: 'test' },
+  { id: 'test-mvp-14', name: 'Bukayo Saka', team: 'Inglaterra', code: 'ENG', goals: 1, source: 'test' },
+  { id: 'test-mvp-15', name: 'Raphinha', team: 'Brasil', code: 'BRA', goals: 1, source: 'test' },
+  { id: 'test-mvp-16', name: 'Gavi', team: 'España', code: 'ESP', goals: 1, source: 'test' },
+  { id: 'test-mvp-17', name: 'Federico Valverde', team: 'Uruguay', code: 'URU', goals: 1, source: 'test' },
+  { id: 'test-mvp-18', name: 'Jonathan David', team: 'Canadá', code: 'CAN', goals: 1, source: 'test' },
+  { id: 'test-mvp-19', name: 'Santiago Giménez', team: 'México', code: 'MEX', goals: 1, source: 'test' },
+  { id: 'test-mvp-20', name: 'Takefusa Kubo', team: 'Japón', code: 'JPN', goals: 1, source: 'test' },
 ];
 
 function meta(id, testNow, matches, extra = {}) {
@@ -133,5 +143,6 @@ export function buildTestPhase(id) {
     mvpCandidatesLocked: true,
     mvpCandidatesAt: '2026-06-27T12:00:00Z',
     mvpCandidatesSource: 'test',
+    mvpActual: 'test-mvp-1',
   });
 }
