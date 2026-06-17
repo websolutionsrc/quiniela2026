@@ -136,7 +136,8 @@
       foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span>Tu pronóstico: ${m.yourPred.home}-${m.yourPred.away}`;
       if (m.points && m.points.hasResult) {
         foot += ` · <span class="pts ${m.points.exactHit ? 'hit' : ''}">Exacto +${m.points.exact}</span>`;
-        if (m.points.sign > 0) foot += `<span class="pts ${m.points.signHit ? 'hit' : ''}">1X2 +${m.points.sign}</span>`;
+        if (!m.points.exactHit) foot += `<span class="pts ${m.points.signHit ? 'hit' : ''}">Ganador/empate +${m.points.winner || 0}</span>`;
+        if (m.points.sign > 0) foot += `<span class="pts ${m.points.signHit ? 'hit' : ''}">1X2 extra +${m.points.sign}</span>`;
       }
       foot += `</span>`;
     } else {
