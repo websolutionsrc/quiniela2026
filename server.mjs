@@ -30,6 +30,7 @@ const MIME = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
 };
 const MOUNTED_STATIC_PREFIXES = ['api', 'css', 'js', 'img'];
+const NO_CACHE_EXT = new Set(['.html', '.js', '.css']);
 function sendJSON(res, status, obj, headers = {}) {
   const body = JSON.stringify(obj);
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...headers });
@@ -406,7 +407,7 @@ async function handleApi(req, res, pathname) {
 async function serveIndex(res, base = '') {
   const html = await readFile(join(PUBLIC, 'index.html'), 'utf8');
   const body = html.replaceAll('%APP_BASE%', base);
-  res.writeHead(200, { 'Content-Type': MIME['.html'] });
+  res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store' });
   res.end(body);
 }
 async function serveStatic(req, res, pathname) {
@@ -416,7 +417,10 @@ async function serveStatic(req, res, pathname) {
   try {
     if (rel === '/index.html') return await serveIndex(res, mountedBase(decodeURIComponent((req.url || '/').split('?')[0])));
     const body = await readFile(full);
-    res.writeHead(200, { 'Content-Type': MIME[extname(full).toLowerCase()] || 'application/octet-stream' });
+    const ext = extname(full).toLowerCase();
+    const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+    if (NO_CACHE_EXT.has(ext)) headers['Cache-Control'] = 'no-store';
+    res.writeHead(200, headers);
     res.end(body);
   } catch {
     // SPA fallback a index.html para rutas desconocidas que no sean de API.
