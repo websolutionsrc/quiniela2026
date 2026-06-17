@@ -136,7 +136,10 @@
       let points = '';
       if (m.points && m.points.hasResult) {
         points += `<span class="pts ${m.points.exactHit ? 'hit' : ''}">Exacto +${m.points.exact}</span>`;
-        if (!m.points.exactHit) points += `<span class="pts ${m.points.signHit ? 'hit' : ''}">Ganador/empate +${m.points.winner || 0}</span>`;
+        if (!m.points.exactHit) {
+          const winnerPts = m.points.winner ?? (m.points.signHit ? STATE.rules.group.signPartial : 0);
+          points += `<span class="pts ${m.points.signHit ? 'hit' : ''}">Ganador/empate +${winnerPts}</span>`;
+        }
         if (m.points.sign > 0) points += `<span class="pts ${m.points.signHit ? 'hit' : ''}">1X2 extra +${m.points.sign}</span>`;
       }
       foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span class="pred-summary"><span>Tu pronóstico: ${m.yourPred.home}-${m.yourPred.away}</span>${points}</span>`;
