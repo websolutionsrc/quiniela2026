@@ -244,7 +244,9 @@
   }
   function renderGroups() {
     const g = STATE.group;
-    const head = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Predice el marcador de cada partido. Se envía <b>todo a la vez y una sola vez</b>.</p></div>`;
+    const headOpen = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Predice el marcador de cada partido. Se envía <b>todo a la vez y una sola vez</b>.</p></div>`;
+    const headSubmitted = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Tus predicciones ya fueron enviadas. Revisa cada partido jugado, tu pronóstico y los puntos conseguidos.</p></div>`;
+    const headClosed = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Consulta los partidos y la clasificación de grupos según los resultados disponibles.</p></div>`;
     const extra = STATE.rules.group.sign > 0 ? `, y <b>${STATE.rules.group.sign} pt</b> extra por el 1X2` : '';
     const exactTotal = STATE.rules.group.exactScore + STATE.rules.group.signPartial + STATE.rules.group.sign;
     const rules = `<div class="notice info">Reglas: <b>${STATE.rules.group.exactScore} pts</b> por marcador exacto y <b>${STATE.rules.group.signPartial} pts</b> por acertar ganador/empate${extra}. El exacto acumula ambos: si acaba 2-1, poner 2-1 da ${exactTotal} pts; poner 1-0 da ${STATE.rules.group.signPartial} pts y poner 0-1 da 0 pts.</div>`;
@@ -253,21 +255,21 @@
     if (g.submitted) {
       const blocks = Object.entries(byGroup(g.matches)).sort().map(([k, ms]) =>
         `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(m => groupRowReadOnly(m)).join('')}</div>`).join('');
-      return head + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + standings + blocks;
+      return headSubmitted + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + blocks + standings;
     }
     if (g.open) {
       const up = new Set(g.upcomingIds);
       const formMatches = g.matches.filter(m => up.has(m.id));
       const blocks = Object.entries(byGroup(formMatches)).sort().map(([k, ms]) =>
         `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(groupRowForm).join('')}</div>`).join('');
-      return head + rules +
+      return headOpen + rules +
         `<div class="notice warn">⚠️ Una vez envíes, <b>no podrás cambiarlo</b>. Rellena todos los partidos.</div>
          <form id="group-form">${blocks}
            <div class="sticky-submit"><span class="sub">${formMatches.length} partidos por pronosticar</span>
              <button class="btn primary" type="submit">Enviar predicciones (definitivo)</button></div>
          </form>` + standings;
     }
-    return head + `<div class="empty">No hay partidos de grupos disponibles para predecir ahora mismo.</div>` + standings;
+    return headClosed + `<div class="empty">No hay partidos de grupos disponibles para predecir ahora mismo.</div>` + standings;
   }
 
   // ---------------------------------------------------------- Llave --------
@@ -339,8 +341,9 @@
   function renderBracket() {
     const b = STATE.bracket;
     const head = `<div class="section-head"><h2>🗝️ Llave eliminatoria</h2><p>Elige quién avanza en cada cruce hasta el campeón. Se envía <b>una sola vez</b>.</p></div>`;
+    const submittedHead = `<div class="section-head"><h2>🗝️ Llave eliminatoria</h2><p>Tu llave ya fue enviada. Revisa el cuadro, los avances acertados y los bonus aplicados.</p></div>`;
     if (b.submitted) {
-      return head + `<div class="notice ok">✓ Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + renderBracketGrid(false);
+      return submittedHead + `<div class="notice ok">✓ Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + renderBracketGrid(false);
     }
     if (!b.window.open) {
       const why = b.window.passedDeadline ? 'La llave ya está cerrada.' : 'La llave se abrirá cuando terminen los grupos y se conozcan los 32 equipos.';
@@ -425,6 +428,7 @@
   function renderFinal() {
     const f = STATE.final;
     const head = `<div class="section-head"><h2>🏆 La Final</h2><p>Apuesta el <b>marcador exacto</b>. El campeón se deduce del marcador; si pronosticas empate, eliges quién levanta la copa. Se envía una sola vez.</p></div>`;
+    const submittedHead = `<div class="section-head"><h2>🏆 La Final</h2><p>Tu apuesta de la final ya fue enviada. Revisa tu marcador, campeón elegido y puntos conseguidos.</p></div>`;
     if (!f.teams) return head + `<div class="empty">Se abrirá cuando se conozcan los dos finalistas (tras las semifinales).</div>`;
     const A = f.teams.home, B = f.teams.away;
     const champName = (code) => code === A.code ? A.name : (code === B.code ? B.name : '—');
@@ -437,7 +441,7 @@
         const champHit = f.your.champion && f.actual.winner && f.your.champion === f.actual.winner;
         res = `<div class="notice ${exact || champHit ? 'ok' : 'warn'}">Final real: ${as.home}-${as.away}, campeón ${esc(champName(f.actual.winner))}. ${exact ? '✓ marcador exacto' : '✗ marcador exacto'}${champHit ? ' · ✓ campeón' : ''}</div>`;
       }
-      return head + `<div class="notice ok">Tu apuesta: <b>${esc(A.name)} ${f.your.score.home}-${f.your.score.away} ${esc(B.name)}</b> · campeón: <b>${esc(champName(f.your.champion))}</b> (enviada ${fmt(f.submittedAt)}).</div>` + res + finalCard(A, B, f);
+      return submittedHead + `<div class="notice ok">Tu apuesta: <b>${esc(A.name)} ${f.your.score.home}-${f.your.score.away} ${esc(B.name)}</b> · campeón: <b>${esc(champName(f.your.champion))}</b> (enviada ${fmt(f.submittedAt)}).</div>` + res + finalCard(A, B, f);
     }
     if (!f.open) return head + `<div class="notice info">La apuesta de la final está cerrada.</div>` + finalCard(A, B, f);
     return head + rules + `<div class="notice warn">⚠️ Una sola vez. Pon el marcador; solo tendrás que elegir campeón si marcas empate.</div>` + finalForm(A, B);
@@ -460,6 +464,7 @@
       ? 'Candidatos congelados desde football-data.org al abrirse la llave.'
       : (m.candidatesSource === 'test' ? 'Candidatos ficticios del modo pruebas.' : 'Candidatos manuales de respaldo.');
     const head = `<div class="section-head"><h2>⭐ Bota de Oro</h2><p>Apuesta por el goleador del torneo entre los 20 mejores goleadores de la fase de grupos. Se envía <b>una sola vez</b>.</p></div>`;
+    const submittedHead = `<div class="section-head"><h2>⭐ Bota de Oro</h2><p>Tu apuesta de Bota de Oro ya fue enviada. Revisa el jugador elegido y si suma puntos.</p></div>`;
     const rules = `<div class="notice info">Reglas: <b>${m.points} pts</b> si aciertas el goleador del torneo. ${source} Ejemplo: eliges a un goleador de la lista y termina ganando la Bota de Oro, sumas ${m.points} pts; si gana otro jugador, sumas 0.</div>`;
     if (m.submitted) {
       const pick = m.candidates.find(p => p.id === m.yourPick);
@@ -467,7 +472,7 @@
       if (m.actual) res = (m.actual === m.yourPick)
         ? `<div class="notice ok">✓ ¡Acertaste la Bota de Oro! +${m.points} pts</div>`
         : `<div class="notice warn">Esta vez no acertaste la Bota de Oro.</div>`;
-      return head + rules + `<div class="notice ok">Tu apuesta: <b>${esc(pick ? pick.name : '—')}</b> (enviada ${fmt(m.submittedAt)}). No se puede cambiar.</div>` + res + mvpGrid(m, null);
+      return submittedHead + rules + `<div class="notice ok">Tu apuesta: <b>${esc(pick ? pick.name : '—')}</b> (enviada ${fmt(m.submittedAt)}). No se puede cambiar.</div>` + res + mvpGrid(m, null);
     }
     if (!m.open) {
       const why = (m.window && m.window.passedDeadline) ? 'La apuesta de Bota de Oro ya está cerrada.' : 'Se abrirá en la fase eliminatoria (cuando terminen los grupos).';
