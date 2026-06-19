@@ -36,13 +36,14 @@ export const CONFIG = {
     // Fase de grupos: predices el marcador de cada partido.
     group: {
       exactScore: 3,  // marcador exacto
-      signPartial: 2, // solo el ganador/empate (sin marcador exacto)
+      signPartial: 2, // ganador/empate, acumulable con marcador exacto
       sign: 0,        // extra por formato 1X2
     },
     // Llave: predices quién avanza en cada cruce.
     bracket: {
-      perWinner: 2,   // por cada cruce acertado (igual en TODAS las rondas)
-      top4Bonus: 5,   // extra por cada semifinalista (top 4) acertado
+      perWinner: 3,     // por cada cruce acertado (igual en TODAS las rondas)
+      top4Bonus: 5,     // extra por cada semifinalista (top 4) acertado
+      finalistBonus: 6, // extra por cada finalista acertado
     },
     // La Final: apuesta especial cuando se conocen los finalistas.
     final: {

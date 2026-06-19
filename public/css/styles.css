@@ -75,10 +75,29 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .ranking td:nth-child(2) { text-align: left; }
 .ranking tbody tr { background: var(--panel); }
 .ranking tbody tr.me { background: rgba(0,184,148,.14); }
+.ranking tbody tr.rank-row { cursor: pointer; }
+.ranking tbody tr.rank-row:hover { background: rgba(78,168,222,.14); }
+.rank-user-name { font-weight: 700; color: var(--text); }
 .rank { font-weight: 800; }
 .pts-cell { font-weight: 800; color: var(--accent); font-size: 1.05rem; }
 .youtag { font-size: .68rem; background: var(--primary); color: #07241d; padding: .05rem .4rem; border-radius: 999px; margin-left: .3rem; }
 .sub { color: var(--muted); font-size: .8rem; }
+.back-btn { margin: .3rem 0 1rem; }
+.score-summary { display: grid; gap: .45rem; }
+.score-total { display: flex; align-items: baseline; gap: .55rem; flex-wrap: wrap; }
+.score-total b { color: var(--accent); font-size: 1.35rem; }
+.score-breakdown { display: flex; gap: .45rem; flex-wrap: wrap; }
+.score-breakdown span { background: rgba(159,182,194,.12); border-radius: 999px; padding: .18rem .55rem; }
+.score-breakdown b { color: var(--text); }
+.prediction-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .8rem; margin: .8rem 0 1rem; }
+.detail-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: .8rem; }
+.detail-card h3 { margin: 0 0 .35rem; color: var(--accent); font-size: .98rem; }
+.detail-card p { margin: .25rem 0 .55rem; }
+.detail-line { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; border-top: 1px dashed var(--line); padding-top: .45rem; margin-top: .45rem; }
+.detail-line:first-of-type { border-top: 0; padding-top: 0; margin-top: 0; }
+.detail-line > span:first-child { color: var(--muted); font-size: .8rem; }
+.detail-line.ok { color: #b6f5e6; }
+.mini-team { display: inline-flex; align-items: center; gap: .35rem; font-weight: 700; }
 
 /* Grupos */
 .group-block { margin-bottom: 1.2rem; }
@@ -111,7 +130,7 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .goals.muted { color: var(--muted); } .goals.live { color: var(--live); }
 .match-foot { grid-area: foot; display: flex; justify-content: space-between; gap: .5rem;
   border-top: 1px dashed var(--line); padding-top: .4rem; font-size: .8rem; color: var(--muted); flex-wrap: wrap; }
-.pred-summary { display: flex; justify-content: flex-end; align-items: center; gap: .25rem; flex-wrap: wrap; min-width: 0; }
+.pred-points { display: flex; justify-content: flex-end; align-items: center; gap: .25rem; flex-wrap: wrap; flex: 1 1 220px; min-width: 0; }
 .pts { padding: .05rem .4rem; border-radius: 6px; background: rgba(159,182,194,.12); }
 .pts.hit { background: rgba(0,184,148,.25); color: #8ff0d6; font-weight: 700; }
 .standings { width: 100%; border-collapse: collapse; margin-top: .3rem; }
@@ -181,4 +200,5 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
   .slot .sname { white-space: normal; line-height: 1.15; }
   .champ-box .champ { max-width: 100%; }
   .sticky-submit .btn { width: 100%; }
+  .pred-points { justify-content: flex-start; flex: 1 1 100%; }
 }

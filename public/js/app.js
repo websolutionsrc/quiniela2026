@@ -17,7 +17,7 @@
   const euro = (n) => `${Number(n || 0).toLocaleString('es-ES')} €`;
 
   let STATE = null, ME = null;
-  const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null, testPhases: null, mvpPick: null, finalChamp: null, finalScore: {} };
+  const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null, testPhases: null, mvpPick: null, finalChamp: null, finalScore: {}, playerProfile: null };
 
   async function api(path, opts = {}) {
     const r = await fetch(APP_BASE + '/api' + path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -61,10 +61,11 @@
     if (ME.isAdmin || s.mvp.open || s.mvp.submitted) nav.push(['mvp', '⭐ Bota de Oro']);
     nav.push(['cuenta', '👤 Cuenta']);
     if (ME.isAdmin) nav.push(['admin', '⚙️ Admin']);
-    if (!nav.some(([k]) => k === ui.tab)) ui.tab = 'ranking';
+    if (!nav.some(([k]) => k === ui.tab) && ui.tab !== 'player') ui.tab = 'ranking';
     const navHtml = nav.map(([k, l]) => `<button class="nav-btn ${ui.tab === k ? 'active' : ''}" data-action="tab" data-tab="${k}">${l}</button>`).join('');
     let content = '';
     if (ui.tab === 'ranking') content = renderRanking();
+    else if (ui.tab === 'player') content = renderPlayerPredictions();
     else if (ui.tab === 'grupos') content = renderGroups();
     else if (ui.tab === 'llave') content = renderBracket();
     else if (ui.tab === 'final') content = renderFinal();
@@ -90,19 +91,103 @@
   // -------------------------------------------------------- Ranking --------
   function renderRanking() {
     const rows = STATE.ranking;
-    const head = `<div class="section-head"><h2>🏆 Clasificación</h2><p>Total = grupos + llave + final + Bota de Oro.</p></div>`;
+    const head = `<div class="section-head"><h2>🏆 Clasificación</h2><p>Pincha en un jugador para ver su desglose y sus predicciones ya resueltas.</p></div>`;
     const p = STATE.prize || {};
     const prize = `<div class="notice info">Premios: <b>${euro(p.pot)}</b> (${p.players || 0} jugadores × ${euro(p.perPlayer)}). Reparto: <b>${euro(p.first)}</b> para el 1.º y <b>${euro(p.second)}</b> para el 2.º. La clasificación finaliza el <b>${fmtDate(p.closeAt || '2026-07-20T12:00:00Z')}</b>.</div>`;
     if (!rows.length) return head + prize + `<div class="empty">Aún no hay jugadores con datos.</div>`;
     const medal = r => r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : r;
     return head + prize + `
-      <table class="ranking"><thead><tr><th>#</th><th>Jugador</th><th>Total</th><th>Grupos</th><th>Llave</th></tr></thead><tbody>
-      ${rows.map(r => `<tr class="${r.username === ME.username ? 'me' : ''}">
+      <table class="ranking"><thead><tr><th>#</th><th>Jugador</th><th>Total</th></tr></thead><tbody>
+      ${rows.map(r => `<tr class="${r.username === ME.username ? 'me rank-row' : 'rank-row'}" data-action="rank-user" data-user="${esc(r.username)}" title="Ver partidos ya jugados de ${esc(r.name)}">
         <td class="rank">${medal(r.rank)}</td>
-        <td>${esc(r.name)}${r.username === ME.username ? ' <span class="youtag">tú</span>' : ''}
-          <div class="sub">grupos ${r.group.combined} pts (${r.group.exactHits} exactos, ${r.group.winnerHits || 0} ganador/empate) · llave ${r.bracket.points} pts (${r.bracket.correct} cruces, ${r.bracket.top4} top4) · final ${r.final.points} pts · Bota de Oro ${r.mvp.points} pts${r.mvp.hit ? ' ⭐' : ''}</div></td>
-        <td class="pts-cell">${r.total}</td><td>${r.group.combined}</td><td>${r.bracket.points}</td></tr>`).join('')}
+        <td><span class="rank-user-name">${esc(r.name)}</span>${r.username === ME.username ? ' <span class="youtag">tú</span>' : ''}</td>
+        <td class="pts-cell">${r.total}</td></tr>`).join('')}
       </tbody></table>`;
+  }
+
+  function playerTotals(t, fallbackGroup) {
+    const group = (t && t.group) || fallbackGroup || {};
+    const bracket = (t && t.bracket) || {};
+    const final = (t && t.final) || {};
+    const mvp = (t && t.mvp) || {};
+    const total = t && t.total != null
+      ? t.total
+      : (group.combined || 0) + (bracket.points || 0) + (final.points || 0) + (mvp.points || 0);
+    const rank = t && t.rank ? `<span class="sub">Puesto #${t.rank}</span>` : '';
+    return `<div class="notice info score-summary">
+      <div class="score-total"><span>Total</span><b>${total} pts</b>${rank}</div>
+      <div class="score-breakdown">
+        <span>Grupos <b>${group.combined || 0}</b></span>
+        <span>Llave <b>${bracket.points || 0}</b></span>
+        <span>Final <b>${final.points || 0}</b></span>
+        <span>Bota de Oro <b>${mvp.points || 0}</b></span>
+      </div>
+      <div class="sub">Grupos: ${group.exactHits || 0} exactos, ${group.signHits || 0} ganador/empate. Llave: ${bracket.correct || 0} cruces, ${bracket.top4 || 0} top4, ${bracket.finalists || 0} finalistas.</div>
+    </div>`;
+  }
+
+  function miniTeam(t) {
+    if (!t) return '<span class="sub">—</span>';
+    return `<span class="mini-team">${flagImg(t.flag, 'flag flag-sm')}<span>${esc(t.name || t.code || '—')}</span></span>`;
+  }
+  function miniPlayer(p) {
+    if (!p) return '<span class="sub">sin apuesta</span>';
+    const goals = p.goals != null ? ` · ${p.goals} goles` : '';
+    return `<span class="mini-team">${flagImg(p.flag, 'flag flag-sm')}<span>${esc(p.name || p.id)}${goals}</span></span>`;
+  }
+  function renderBracketDetail(d) {
+    if (!d || !d.submitted) return `<div class="detail-card"><h3>Llave</h3><p class="sub">Sin llave enviada.</p></div>`;
+    const correct = d.correctPicks || [];
+    const rows = correct.length
+      ? correct.map(p => `<div class="detail-line ok"><span>${esc(p.roundName)}</span>${miniTeam(p.pick)}<b>+${STATE.rules.bracket.perWinner}${p.top4Bonus ? ` +${STATE.rules.bracket.top4Bonus}` : ''}${p.finalistBonus ? ` +${STATE.rules.bracket.finalistBonus || 0}` : ''}</b></div>`).join('')
+      : `<p class="sub">${d.hasResult ? 'No tiene cruces acertados resueltos todavía.' : 'La llave aún no tiene resultados para comparar.'}</p>`;
+    return `<div class="detail-card"><h3>Llave</h3>
+      <p class="sub">${d.points || 0} pts · ${d.correct || 0} cruces · ${d.top4 || 0} top4 · ${d.finalists || 0} finalistas</p>
+      ${rows}</div>`;
+  }
+  function renderGoldenBootDetail(d) {
+    if (!d || !d.submitted) return `<div class="detail-card"><h3>Bota de Oro</h3><p class="sub">Sin apuesta enviada.</p></div>`;
+    const status = d.hasResult
+      ? (d.hit ? `<span class="pts hit">Acertada +${d.points || 0}</span>` : `<span class="pts">Fallada +0</span>`)
+      : `<span class="pts">Pendiente</span>`;
+    const actual = d.actual ? `<div class="detail-line"><span>Ganador real</span>${miniPlayer(d.actual)}</div>` : '';
+    return `<div class="detail-card"><h3>Bota de Oro</h3>
+      <div class="detail-line"><span>Apuesta</span>${miniPlayer(d.picked)}${status}</div>
+      ${actual}</div>`;
+  }
+  function renderFinalDetail(d) {
+    if (!d || !d.submitted) return `<div class="detail-card"><h3>Final</h3><p class="sub">Sin apuesta enviada.</p></div>`;
+    const teams = d.teams ? `${esc(d.teams.home.name)} vs ${esc(d.teams.away.name)}` : 'Final';
+    const pred = d.score ? `${d.score.home}-${d.score.away}` : '—';
+    const actual = d.actual ? `<div class="detail-line"><span>Resultado real</span><b>${d.actual.score.home}-${d.actual.score.away}</b>${miniTeam(d.actual.winner)}</div>` : '';
+    const exact = d.hasResult ? `<span class="pts ${d.exactHit ? 'hit' : ''}">Exacto +${d.exactHit ? STATE.rules.final.exactScore : 0}</span>` : '';
+    const champ = d.hasResult ? `<span class="pts ${d.champHit ? 'hit' : ''}">Campeón +${d.champHit ? STATE.rules.final.championBonus : 0}</span>` : `<span class="pts">Pendiente</span>`;
+    return `<div class="detail-card"><h3>Final</h3>
+      <p class="sub">${esc(teams)} · ${d.points || 0} pts</p>
+      <div class="detail-line"><span>Apuesta</span><b>${pred}</b>${miniTeam(d.champion)}${exact}${champ}</div>
+      ${actual}</div>`;
+  }
+  function renderPredictionDetails(p) {
+    return `<div class="prediction-sections">
+      ${renderBracketDetail(p.bracketDetail)}
+      ${renderGoldenBootDetail(p.goldenBootDetail)}
+      ${renderFinalDetail(p.finalDetail)}
+    </div>`;
+  }
+
+  function renderPlayerPredictions() {
+    const p = ui.playerProfile;
+    const back = `<button class="btn ghost sm back-btn" data-action="player-back">← Volver a clasificación</button>`;
+    if (!p) return back + `<div class="empty">Cargando predicciones...</div>`;
+    const matches = p.matches || [];
+    const s = p.summary || {};
+    const head = `<div class="section-head"><h2>Predicciones de ${esc(p.user.name)}</h2><p>Solo se muestran partidos de grupos que ya se han jugado.</p></div>`;
+    const summary = playerTotals(p.totals, s);
+    const details = renderPredictionDetails(p);
+    if (!matches.length) return back + head + summary + details + `<div class="empty">Todavía no hay partidos jugados para mostrar.</div>`;
+    const blocks = Object.entries(byGroup(matches)).sort().map(([k, ms]) =>
+      `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(m => groupRowReadOnly(m, 'Pronóstico')).join('')}</div>`).join('');
+    return back + head + summary + details + blocks;
   }
 
   // --------------------------------------------------------- Grupos --------
@@ -128,21 +213,20 @@
           ${st[g].map((r, i) => `<tr><td>${i + 1}</td><td>${flagImg(r.team.flag, 'flag flag-sm')} ${esc(r.team.name)}</td><td>${r.pj}</td><td><b>${r.pts}</b></td><td>${r.gf - r.ga}</td></tr>`).join('')}
           </tbody></table></div>`).join('')}</div>`;
   }
-  function groupRowReadOnly(m) {
+  function groupRowReadOnly(m, predictionLabel = 'Pronóstico') {
     let mid, foot;
     if (m.score) { mid = `<span class="goals">${m.score.home}</span><span class="dash">-</span><span class="goals">${m.score.away}</span>`; }
     else { mid = `<span class="goals muted">·</span><span class="dash">-</span><span class="goals muted">·</span>`; }
     if (m.yourPred) {
       let points = '';
       if (m.points && m.points.hasResult) {
-        points += `<span class="pts ${m.points.exactHit ? 'hit' : ''}">Exacto +${m.points.exact}</span>`;
-        if (!m.points.exactHit) {
-          const winnerPts = m.points.winner ?? (m.points.signHit ? STATE.rules.group.signPartial : 0);
-          points += `<span class="pts ${m.points.signHit ? 'hit' : ''}">Ganador/empate +${winnerPts}</span>`;
-        }
+        const exactPts = m.points.exact ?? (m.points.exactHit ? STATE.rules.group.exactScore : 0);
+        const winnerPts = m.points.signHit ? (m.points.winner || STATE.rules.group.signPartial) : (m.points.winner || 0);
+        points += `<span class="pts ${m.points.exactHit ? 'hit' : ''}">Exacto +${exactPts}</span>`;
+        points += `<span class="pts ${m.points.signHit ? 'hit' : ''}">Ganador/empate +${winnerPts}</span>`;
         if (m.points.sign > 0) points += `<span class="pts ${m.points.signHit ? 'hit' : ''}">1X2 extra +${m.points.sign}</span>`;
       }
-      foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span class="pred-summary"><span>Tu pronóstico: ${m.yourPred.home}-${m.yourPred.away}</span>${points}</span>`;
+      foot = `<span>J${m.matchday} · ${fmt(m.utcDate)} · ${esc(predictionLabel)}: ${m.yourPred.home}-${m.yourPred.away}</span><span class="pred-points">${points}</span>`;
     } else {
       foot = `<span>J${m.matchday} · ${fmt(m.utcDate)}</span><span class="sub">${m.score ? 'no incluido' : 'pendiente'}</span>`;
     }
@@ -162,12 +246,13 @@
     const g = STATE.group;
     const head = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Predice el marcador de cada partido. Se envía <b>todo a la vez y una sola vez</b>.</p></div>`;
     const extra = STATE.rules.group.sign > 0 ? `, y <b>${STATE.rules.group.sign} pt</b> extra por el 1X2` : '';
-    const rules = `<div class="notice info">Reglas: <b>${STATE.rules.group.exactScore} pts</b> por marcador exacto y <b>${STATE.rules.group.signPartial} pts</b> por acertar solo el ganador/empate${extra}. Ejemplo: si el partido acaba 2-1, poner 2-1 da ${STATE.rules.group.exactScore} pts, poner 1-0 da ${STATE.rules.group.signPartial} pts y poner 0-1 da 0 pts.</div>`;
+    const exactTotal = STATE.rules.group.exactScore + STATE.rules.group.signPartial + STATE.rules.group.sign;
+    const rules = `<div class="notice info">Reglas: <b>${STATE.rules.group.exactScore} pts</b> por marcador exacto y <b>${STATE.rules.group.signPartial} pts</b> por acertar ganador/empate${extra}. El exacto acumula ambos: si acaba 2-1, poner 2-1 da ${exactTotal} pts; poner 1-0 da ${STATE.rules.group.signPartial} pts y poner 0-1 da 0 pts.</div>`;
     const standings = renderStandings(g.standings);
 
     if (g.submitted) {
       const blocks = Object.entries(byGroup(g.matches)).sort().map(([k, ms]) =>
-        `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(groupRowReadOnly).join('')}</div>`).join('');
+        `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(m => groupRowReadOnly(m)).join('')}</div>`).join('');
       return head + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + standings + blocks;
     }
     if (g.open) {
@@ -249,7 +334,7 @@
     return `<div class="bracket-scroll"><div class="bracket">${colHtml}</div></div>${champ}`;
   }
   function rulesBracket() {
-    return `<div class="notice info">Reglas de la llave: <b>${STATE.rules.bracket.perWinner} pts</b> por cada cruce acertado y <b>+${STATE.rules.bracket.top4Bonus} pts</b> por cada semifinalista acertado. Ejemplo: eliges a España en un cruce y avanza, +${STATE.rules.bracket.perWinner}; si además la metiste entre los 4 semifinalistas reales, +${STATE.rules.bracket.top4Bonus} extra.</div>`;
+    return `<div class="notice info">Reglas de la llave: <b>${STATE.rules.bracket.perWinner} pts</b> por cada cruce acertado, <b>+${STATE.rules.bracket.top4Bonus} pts</b> por cada semifinalista acertado y <b>+${STATE.rules.bracket.finalistBonus || 0} pts</b> por cada finalista acertado. Ejemplo: eliges a España en un cruce y avanza, +${STATE.rules.bracket.perWinner}; si la metiste en semifinales reales, +${STATE.rules.bracket.top4Bonus} extra; si además llega a la final, +${STATE.rules.bracket.finalistBonus || 0} extra.</div>`;
   }
   function renderBracket() {
     const b = STATE.bracket;
@@ -478,10 +563,21 @@
       const a = t.dataset.action;
       if (a === 'tab') {
         ui.tab = t.dataset.tab;
+        ui.playerProfile = null;
         if (ui.tab === 'admin') { render(); refreshAdmin(); } else render();
+      } else if (a === 'rank-user') {
+        try {
+          ui.playerProfile = await api(`/users/${encodeURIComponent(t.dataset.user)}/group-predictions`);
+          ui.tab = 'player';
+          render();
+        } catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (a === 'player-back') {
+        ui.playerProfile = null;
+        ui.tab = 'ranking';
+        render();
       } else if (a === 'logout') {
         try { await api('/logout', { method: 'POST' }); } catch {}
-        STATE = null; ME = null; ui.tab = 'ranking'; renderLogin();
+        STATE = null; ME = null; ui.tab = 'ranking'; ui.playerProfile = null; renderLogin();
       } else if (a === 'pick') {
         ui.bracketPicks = ui.bracketPicks || {};
         ui.bracketPicks[t.dataset.node] = t.dataset.code;

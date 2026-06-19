@@ -5,12 +5,12 @@ Quiniela del Mundial 2026 para jugar con amigos. **Servidor Node sin dependencia
 **túnel de Cloudflare**.
 
 ## ✨ Qué hace
-- **Cuentas creadas por el administrador.** Los usuarios solo pueden **cambiar su contraseña**.
-- **Pantalla inicial: Clasificación.**
+- **Cuentas creadas por el administrador.** Los usuarios pueden cambiar su **nombre visible** y su **contraseña**.
+- **Pantalla inicial: Clasificación.** Al pinchar un usuario se ven sus pronósticos de grupos solo para partidos ya jugados.
 - **Grupos:** un formulario con todos los partidos por jugar; se envía **todo a la vez y una sola vez** (queda bloqueado, no se edita).
 - **Eliminatorias (llave):** desde 1/16 hasta la final, formato de **cuadro interactivo**; eliges quién avanza en cada cruce. Se envía **una sola vez**. Se abre cuando terminan los grupos y se conocen los 32 equipos.
 - **Resultados** desde football-data.org (en el servidor).
-- **Puntos:** grupos = 3 marcador exacto / 2 ganador-empate. Llave = 2 por cruce acertado + 5 por semifinalista (top 4). Todo configurable en `config.mjs`.
+- **Puntos:** grupos = 3 por marcador exacto + 2 por ganador/empate (5 si aciertas exacto). Llave = 3 por cruce acertado + 5 por semifinalista (top 4) + 6 por finalista. Todo configurable en `config.mjs`.
 - **Banderas** de cada selección automáticas (de la API o de flagcdn.com).
 - **Bota de Oro / Goleador del torneo:** sección de apuesta que se abre con la fase eliminatoria; cada usuario elige 1 de los 20 mejores goleadores de grupos congelados desde football-data.org al abrirse la llave. +10 pts por acertar el goleador del torneo.
 - **La Final:** apuesta especial que se abre al conocerse los finalistas: **marcador exacto** y **campeón** del Mundial. Si pronosticas empate, eliges quién levanta la copa; si no, el campeón se deduce del marcador. Puntos: 7 por exacto y +10 por campeón.
