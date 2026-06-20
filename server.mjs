@@ -18,18 +18,7 @@ import { TEST_PHASES, buildTestPhase } from './sample/test-phases.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, 'public');
-const DEFAULT_RESULTS_REFRESH_SECONDS = 5 * 60;
-const MIN_RESULTS_REFRESH_SECONDS = 30;
-function parseResultsRefreshMs() {
-  const raw = process.env.RESULTS_REFRESH_SECONDS;
-  const seconds = raw ? Number(raw) : DEFAULT_RESULTS_REFRESH_SECONDS;
-  if (!Number.isFinite(seconds) || seconds < MIN_RESULTS_REFRESH_SECONDS) {
-    console.warn(`[resultados] RESULTS_REFRESH_SECONDS invalido (${raw}); usando ${DEFAULT_RESULTS_REFRESH_SECONDS}s.`);
-    return DEFAULT_RESULTS_REFRESH_SECONDS * 1000;
-  }
-  return Math.round(seconds) * 1000;
-}
-const RESULTS_REFRESH_MS = parseResultsRefreshMs();
+const RESULTS_REFRESH_MS = 5 * 60 * 1000;
 
 Auth.ensureAdmin(CONFIG.admin);
 
@@ -87,7 +76,6 @@ async function refreshResultsFromAPI(source = 'manual') {
 }
 function startResultsRefreshTimer() {
   if (!CONFIG.api.token) return;
-  console.log(`[resultados] actualizacion automatica cada ${Math.round(RESULTS_REFRESH_MS / 1000)}s.`);
   const run = async (source) => {
     if (Data.getData().testMode) {
       console.log(`[resultados:${source}] omitido: modo prueba activo.`);

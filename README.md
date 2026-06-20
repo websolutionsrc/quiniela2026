@@ -72,15 +72,7 @@ Las cookies de sesión ya se marcan `Secure` automáticamente cuando entras por 
    ```powershell
    $env:FOOTBALL_DATA_TOKEN="TU_TOKEN"; node server.mjs
    ```
-3. Opcional: ajusta la frecuencia automatica de consulta. Por defecto son 300 segundos. Durante partidos puedes usar 60-120 segundos:
-   ```powershell
-   $env:RESULTS_REFRESH_SECONDS="120"
-   ```
-   En Linux:
-   ```bash
-   export RESULTS_REFRESH_SECONDS=120
-   ```
-4. Entra como admin → **Admin → Actualizar resultados**. (También puedes programarlo con el Programador de tareas de Windows reiniciando con el token.)
+3. Entra como admin → **Admin → Actualizar resultados**. (También puedes programarlo con el Programador de tareas de Windows reiniciando con el token.)
 
 ## 📁 Estructura
 ```
