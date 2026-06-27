@@ -223,6 +223,25 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .slot.real-adv { box-shadow: inset 3px 0 0 var(--done); }
 .slot.correct { box-shadow: inset 3px 0 0 var(--primary); }
 .tie.final-tie { border-color: var(--accent); }
+.bracket-status .tie { position: relative; cursor: pointer; }
+.bracket-status .tie:hover { border-color: var(--done); }
+.status-tie.won { border-color: var(--primary); background: rgba(0,184,148,.12); }
+.status-tie.broken { border-color: var(--danger); background: rgba(239,71,111,.12); }
+.status-tie.recovery-open { border-color: var(--accent); background: rgba(255,209,102,.16); box-shadow: inset 0 3px 0 var(--accent); }
+.status-tie.recovered { border-color: var(--done); background: rgba(78,168,222,.12); }
+.status-tie.inactive { border-style: dashed; }
+.status-tie.selected { outline: 2px solid var(--done); outline-offset: 2px; }
+.tie-status { padding: .32rem .5rem; border-bottom: 1px solid var(--line); color: var(--muted); font-size: .72rem; font-weight: 700; }
+.status-tie.won .tie-status { color: #8ff0d6; }
+.status-tie.broken .tie-status { color: #ff9bb0; }
+.status-tie.recovery-open .tie-status { color: var(--accent); }
+.slot.hit-pick { background: rgba(0,184,148,.26); box-shadow: inset 3px 0 0 var(--primary); }
+.slot.broken-pick { background: rgba(239,71,111,.22); box-shadow: inset 3px 0 0 var(--danger); }
+.slot.dead-pick { opacity: .62; text-decoration: line-through; }
+.slot.actual-winner:not(.hit-pick) { box-shadow: inset 3px 0 0 var(--done); }
+.slot.recovery-pick { background: rgba(78,168,222,.16); font-weight: 700; }
+.slot .sname small { display: block; color: var(--muted); font-size: .62rem; font-weight: 600; line-height: 1.1; }
+.tie-actions { display: flex; flex-wrap: wrap; gap: .35rem; padding: .45rem .5rem; border-top: 1px dashed rgba(255,209,102,.35); }
 .champ-box { margin-top: .6rem; text-align: center; }
 .champ-box .champ { display: inline-block; background: rgba(255,209,102,.16); border: 1px solid var(--accent);
   border-radius: 10px; padding: .5rem 1rem; font-weight: 800; }

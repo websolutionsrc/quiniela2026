@@ -152,6 +152,7 @@
     const final = (t && t.final) || {};
     const mvp = (t && t.mvp) || {};
     const action = bracket.actionRequired ? `, requiere accion ${bracket.actionRequired}` : '';
+    const winnerOnly = group.winnerHits ?? Math.max(0, (group.signHits || 0) - (group.exactHits || 0));
     const total = t && t.total != null
       ? t.total
       : (group.combined || 0) + (bracket.points || 0) + (final.points || 0) + (mvp.points || 0);
@@ -164,7 +165,7 @@
         <span>Final <b>${final.points || 0}</b></span>
         <span>Goleador <b>${mvp.points || 0}</b></span>
       </div>
-      <div class="sub">Grupos: ${group.exactHits || 0} exactos, ${group.signHits || 0} ganador/empate. Llave: ${bracket.originalLive || 0} originales vivas, ${bracket.recoveredLive || 0} recuperadas vivas${action}, mejor racha activa +${bracket.bestActive || 0}.</div>
+      <div class="sub">Grupos: ${group.exactHits || 0} exactos, ${winnerOnly} ganador/empate adicionales. Llave: ${bracket.originalLive || 0} originales vivas, ${bracket.recoveredLive || 0} recuperadas vivas${action}, mejor racha activa +${bracket.bestActive || 0}.</div>
     </div>`;
   }
 
@@ -571,6 +572,81 @@
       }).join('')}</div>`;
     }).join('')}</div>`;
   }
+  function pickMapFromDetail(d) {
+    const out = {};
+    (d?.nodes || []).forEach(n => { if (n.originalPick) out[n.nodeId] = n.originalPick; });
+    return out;
+  }
+  function bracketNodeDetailMap(d) {
+    return Object.fromEntries((d?.nodes || []).map(n => [n.nodeId, n]));
+  }
+  function statusTeamsForNode(n, cand, detail) {
+    if (detail?.match?.home && detail?.match?.away) return { a: detail.match.home, b: detail.match.away };
+    return cand[n.id] || { a: null, b: null };
+  }
+  function statusSlotHtml(team, detail) {
+    const code = team && team.code;
+    const cls = ['slot'];
+    const original = code && detail?.originalPick === code;
+    const recovered = code && detail?.recoveryPick === code;
+    const active = code && detail?.activePick === code;
+    const actual = code && detail?.actualWinner === code;
+    if (!code) cls.push('label');
+    if (original || recovered) cls.push(recovered ? 'recovery-pick' : 'pick');
+    if (detail?.resolved && actual) cls.push('actual-winner');
+    if (detail?.hit && active && actual) cls.push('hit-pick');
+    if (detail?.status === 'broken' && active && !actual) cls.push('broken-pick');
+    if (!detail?.activePick && !detail?.recoveryOpen && (original || recovered)) cls.push('dead-pick');
+    const name = team ? (code ? team.name : (team.label || '—')) : '—';
+    const flag = team && team.flag ? flagImg(team.flag, 'flag flag-sm') : '';
+    const tags = [
+      original ? '<small>tu rama</small>' : '',
+      recovered ? '<small>recuperada</small>' : '',
+      actual ? '<small>paso real</small>' : '',
+    ].filter(Boolean).join('');
+    return `<div class="${cls.join(' ')}">${flag}<span class="scode">${esc(code || '')}</span><span class="sname">${esc(name)}${tags}</span></div>`;
+  }
+  function tieStatusText(n) {
+    if (!n) return 'Pendiente';
+    if (n.recoveryOpen) return 'Requiere accion';
+    if (n.hit) return `+${n.points || 0} · proximo +${n.nextValue || 0}`;
+    if (n.status === 'broken') return 'Rama rota';
+    if (n.branchType === 'recovered') return `Recuperada +${n.branchValue || bracketBaseV2()} si pasa`;
+    if (n.branchType === 'original') return `Original +${n.branchValue || bracketBaseV2()} si pasa`;
+    if (n.resolved && n.actualWinnerTeam) return `Paso ${n.actualWinnerTeam.name}`;
+    return 'Sin rama activa';
+  }
+  function renderBracketStatusGrid(detail, compact = false) {
+    const b = STATE.bracket, tree = b.tree;
+    const nodes = bracketNodeDetailMap(detail);
+    const picks = pickMapFromDetail(detail);
+    const cand = computeCandidates(tree, picks);
+    const cols = [
+      { head: '1/16', nodes: tree.r32 },
+      { head: 'Octavos', nodes: tree.r16 },
+      { head: 'Cuartos', nodes: tree.qf },
+      { head: 'Semis', nodes: tree.sf },
+      { head: 'Final', nodes: [tree.final] },
+    ];
+    const title = compact ? '' : '<h3 class="group-title">Arbol de llaves</h3>';
+    const colHtml = cols.map(col => `
+      <div class="round"><div class="round-head">${esc(col.head)}</div>
+        ${col.nodes.map(node => {
+          const nd = nodes[node.id] || null;
+          const teams = statusTeamsForNode(node, cand, nd);
+          const actions = nd?.recoveryOpen
+            ? `<div class="tie-actions">${(nd.recoveryOptions || []).map(t => `<button class="btn sm" data-action="recovery-pick" data-node="${esc(nd.nodeId)}" data-code="${esc(t.code)}">${flagImg(t.flag, 'flag flag-sm')} ${esc(t.name)}</button>`).join('')}</div>`
+            : '';
+          return `<div class="tie status-tie ${branchClass(nd)} ${ui.branchDetailNode === node.id ? 'selected' : ''}" data-action="branch-detail" data-node="${esc(node.id)}">
+            <div class="tie-status">${esc(tieStatusText(nd))}</div>
+            ${statusSlotHtml(teams.a, nd)}
+            ${statusSlotHtml(teams.b, nd)}
+            ${actions}
+          </div>`;
+        }).join('')}
+      </div>`).join('');
+    return `${title}<div class="bracket-scroll"><div class="bracket bracket-status">${colHtml}</div></div>`;
+  }
   function renderSelectedBranchDetail(d) {
     const n = (d?.nodes || []).find(x => x.nodeId === ui.branchDetailNode);
     if (!n) return '';
@@ -596,7 +672,7 @@
     const body = rows.length
       ? rows.map(n => `<div class="detail-line ${n.hit ? 'ok' : ''}"><span>${esc(n.roundName)}</span>${branchNodeMainV2(n)}<b>${esc(branchLabel(n))}</b></div>`).join('')
       : `<p class="sub">${d.hasResult ? 'No tiene cruces acertados resueltos todavia.' : 'La llave aun no tiene resultados para comparar.'}</p>`;
-    const tree = ui.playerTreeOpen ? renderBranchTree(d, true) + renderSelectedBranchDetail(d) : '';
+    const tree = ui.playerTreeOpen ? renderBracketStatusGrid(d, true) + renderSelectedBranchDetail(d) : '';
     const action = d.actionRequired ? ` · requiere accion ${d.actionRequired}` : '';
     return `<div class="detail-card detail-wide"><h3>Llave</h3>
       <p class="sub">${d.points || 0} pts · ${d.correct || 0} aciertos · ${d.originalLive || 0} originales vivas · ${d.recoveredLive || 0} recuperadas vivas · mejor +${d.bestActive || 0}${action}</p>
@@ -616,7 +692,7 @@
       const actionNotice = actionCount
         ? `<div class="notice warn">Requiere accion: tienes ${actionCount} cruce${actionCount === 1 ? '' : 's'} en amarillo para recuperar rama.</div>`
         : `<div class="notice ok">Sin acciones pendientes ahora mismo.</div>`;
-      return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + actionNotice + renderBranchTree(b.detail) + renderSelectedBranchDetail(b.detail);
+      return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + actionNotice + renderBracketStatusGrid(b.detail) + renderSelectedBranchDetail(b.detail);
     }
     if (!b.window.open) {
       const why = b.window.passedDeadline ? 'La llave ya esta cerrada.' : 'La llave se abrira cuando terminen los grupos y se conozcan los 32 equipos.';
