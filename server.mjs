@@ -272,6 +272,17 @@ function prizeInfo() {
   };
 }
 
+function publicChat(limit = 120) {
+  const rows = Array.isArray(db.chat) ? db.chat : [];
+  return rows.slice(-limit).map(m => ({
+    id: m.id,
+    username: m.username,
+    name: m.name || db.users[m.username]?.name || m.username,
+    text: m.text,
+    at: m.at,
+  }));
+}
+
 function buildState(user) {
   const data = Data.getData();
   const groupPred = db.predictions[user.username]?.group || {};
@@ -350,6 +361,7 @@ function buildState(user) {
     })(),
     ranking: Score.ranking(),
     feed: Score.socialFeed(80),
+    chat: publicChat(120),
   };
 }
 
@@ -382,6 +394,23 @@ async function handleApi(req, res, pathname) {
 
   if (pathname === '/api/state' && method === 'GET') {
     return sendJSON(res, 200, buildState(user));
+  }
+
+  if (pathname === '/api/chat' && method === 'POST') {
+    const b = await readBody(req);
+    const text = String(b.text || '').replace(/\s+/g, ' ').trim();
+    if (!text) return sendJSON(res, 400, { error: 'Escribe un comentario antes de enviar.' });
+    if (text.length > 220) return sendJSON(res, 400, { error: 'Comentario demasiado largo. Maximo 220 caracteres.' });
+    db.chat = Array.isArray(db.chat) ? db.chat : [];
+    db.chat.push({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      username: user.username,
+      name: user.name,
+      text,
+      at: new Date().toISOString(),
+    });
+    saveDB();
+    return sendJSON(res, 200, { ok: true, chat: publicChat(120) });
   }
 
   const userGroupMatch = /^\/api\/users\/([^/]+)\/group-predictions$/.exec(pathname);

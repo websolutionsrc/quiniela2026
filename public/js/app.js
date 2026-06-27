@@ -111,10 +111,34 @@
 
   function renderSocialFeed() {
     const feed = STATE.feed || [];
+    const chat = STATE.chat || [];
     const body = feed.length
       ? feed.map(e => `<div class="feed-msg ${esc(e.kind || '')}"><div>${esc(e.text)}</div><time>${fmt(e.at)}</time></div>`).join('')
       : `<div class="empty slim">Aun no hay eventos resueltos para mostrar.</div>`;
-    return `<section class="social-feed"><h3>Feed de la quiniela</h3><p class="sub">Solo aparecen eventos de partidos o cruces ya cerrados.</p><div class="feed-box">${body}</div></section>`;
+    const chatBody = chat.length
+      ? chat.map(m => {
+        const mine = m.username === ME.username;
+        return `<div class="chat-msg ${mine ? 'mine' : ''}" style="--chat-color:${chatColor(m.username)}">
+          <div class="chat-bubble"><b>${esc(m.name || m.username)}</b><span>${esc(m.text)}</span><time>${fmt(m.at)}</time></div>
+        </div>`;
+      }).join('')
+      : `<div class="empty slim">Aun no hay comentarios. Puedes abrir el marcador.</div>`;
+    return `<section class="social-feed"><h3>Feed de la quiniela</h3><p class="sub">Eventos automaticos y chat persistente de los participantes.</p>
+      <div class="feed-layout">
+        <div class="feed-panel"><div class="feed-panel-head">Eventos</div><div class="feed-box">${body}</div></div>
+        <div class="feed-panel chat-panel"><div class="feed-panel-head">Chat</div><div class="chat-box">${chatBody}</div>
+          <form id="chat-form" class="chat-form" autocomplete="off">
+            <input name="text" maxlength="220" placeholder="Escribe un comentario..." required>
+            <button class="btn primary sm" type="submit">Enviar</button>
+          </form>
+        </div>
+      </div></section>`;
+  }
+
+  function chatColor(username) {
+    let h = 0;
+    String(username || '').split('').forEach(ch => { h = (h * 31 + ch.charCodeAt(0)) % 360; });
+    return `hsl(${h} 72% 58%)`;
   }
 
   function playerTotals(t, fallbackGroup) {
@@ -866,6 +890,13 @@
       } else if (f.id === 'group-form') {
         try { await api('/group', { method: 'POST', body: JSON.stringify({ picks: collectGroupPicks() }) }); ui.groupDraft = {}; setNotice('✓ Predicciones de grupos enviadas.', 'ok'); await loadState(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (f.id === 'chat-form') {
+        const d = new FormData(f);
+        try {
+          await api('/chat', { method: 'POST', body: JSON.stringify({ text: d.get('text') }) });
+          f.reset();
+          await loadState();
+        } catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (f.id === 'account-form') {
         const d = new FormData(f);
         if (d.get('new') !== d.get('confirm')) { setNotice('Las contraseñas nuevas no coinciden.', 'err'); render(); return; }
