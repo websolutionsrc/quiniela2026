@@ -18,7 +18,10 @@ import { TEST_PHASES, buildTestPhase } from './sample/test-phases.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC = join(__dirname, 'public');
-const RESULTS_REFRESH_MS = 5 * 60 * 1000;
+const RESULTS_IDLE_REFRESH_MS = 5 * 60 * 1000;
+const RESULTS_LIVE_REFRESH_MS = 60 * 1000;
+const RESULTS_LIVE_LEAD_MS = 10 * 60 * 1000;
+const RESULTS_LIVE_TAIL_MS = 3 * 60 * 60 * 1000;
 
 Auth.ensureAdmin(CONFIG.admin);
 
@@ -74,6 +77,16 @@ async function refreshResultsFromAPI(source = 'manual') {
   console.log(`[resultados:${source}] ${r.count} partidos (${r.finished} finalizados)${mvpInfo}.`);
   return r;
 }
+function hasActiveMatchRefreshWindow() {
+  const current = Data.now().getTime();
+  return Data.getData().matches.some(m => {
+    if (!m || Data.isFinished(m)) return false;
+    if (Data.isLive(m)) return true;
+    const kickoff = new Date(m.utcDate).getTime();
+    if (!Number.isFinite(kickoff)) return false;
+    return current >= kickoff - RESULTS_LIVE_LEAD_MS && current <= kickoff + RESULTS_LIVE_TAIL_MS;
+  });
+}
 function startResultsRefreshTimer() {
   if (!CONFIG.api.token) return;
   const run = async (source) => {
@@ -84,8 +97,15 @@ function startResultsRefreshTimer() {
     try { await refreshResultsFromAPI(source); }
     catch (e) { console.warn(`[resultados:${source}] ${e.message}`); }
   };
-  run('inicio');
-  setInterval(() => run('auto'), RESULTS_REFRESH_MS);
+  const schedule = () => {
+    const liveWindow = hasActiveMatchRefreshWindow();
+    const delay = liveWindow ? RESULTS_LIVE_REFRESH_MS : RESULTS_IDLE_REFRESH_MS;
+    setTimeout(async () => {
+      await run(liveWindow ? 'auto-live' : 'auto');
+      schedule();
+    }, delay).unref?.();
+  };
+  run('inicio').finally(schedule);
 }
 
 // --------------------------------------------------------- estado/API ------

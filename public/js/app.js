@@ -364,7 +364,7 @@
   function renderGroups() {
     const g = STATE.group;
     const headOpen = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Predice el marcador de cada partido. Se envía <b>todo a la vez y una sola vez</b>.</p></div>`;
-    const headSubmitted = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Tus predicciones ya fueron enviadas. Revisa cada partido jugado, tu pronóstico y los puntos conseguidos.</p></div>`;
+    const headSubmitted = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Tus predicciones ya fueron enviadas. Aqui solo veras los partidos pendientes o en juego con tu pronostico.</p></div>`;
     const headClosed = `<div class="section-head"><h2>📝 Fase de grupos</h2><p>Consulta los partidos y la clasificación de grupos según los resultados disponibles.</p></div>`;
     const extra = STATE.rules.group.sign > 0 ? `, y <b>${STATE.rules.group.sign} pt</b> extra por el 1X2` : '';
     const exactTotal = STATE.rules.group.exactScore + STATE.rules.group.signPartial + STATE.rules.group.sign;
@@ -372,9 +372,13 @@
     const standings = renderStandings(g.standings);
 
     if (g.submitted) {
-      const blocks = Object.entries(byGroup(g.matches)).sort().map(([k, ms]) =>
+      const pendingMatches = g.matches.filter(m => m.status !== 'FINISHED' && m.state !== 'finished');
+      const blocks = Object.entries(byGroup(pendingMatches)).sort().map(([k, ms]) =>
         `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(m => groupRowReadOnly(m)).join('')}</div>`).join('');
-      return headSubmitted + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + blocks + standings;
+      const body = pendingMatches.length
+        ? blocks
+        : `<div class="empty">Todos los partidos de grupos ya finalizaron. Puedes consultar el desglose de puntos desde Clasificacion.</div>`;
+      return headSubmitted + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + body;
     }
     if (g.open) {
       const up = new Set(g.upcomingIds);
