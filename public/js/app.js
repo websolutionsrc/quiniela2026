@@ -14,6 +14,7 @@
     { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
   const fmtDate = (iso) => new Date(iso).toLocaleDateString('es-ES',
     { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  const rankBadge = (rank) => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : (rank ? `#${rank}` : '');
   const euro = (n) => `${Number(n || 0).toLocaleString('es-ES')} €`;
 
   let STATE = null, ME = null;
@@ -75,9 +76,13 @@
     const src = s.source === 'datos-de-ejemplo' ? '🟡 Datos de ejemplo' : '🟢 ' + esc(s.source);
     const clock = (s.simulated ? '🕒 (simulado) ' : '🕒 ') + fmt(s.now);
     const viewedUser = ui.tab === 'player' && ui.playerProfile?.user;
+    const viewedRank = ui.tab === 'player' ? ui.playerProfile?.totals?.rank : null;
+    const viewedBadge = rankBadge(viewedRank);
+    const myRank = s.ranking?.find(r => r.username === ME.username)?.rank;
+    const myBadge = rankBadge(myRank);
     const userChip = viewedUser
-      ? `Predicciones de ${esc(viewedUser.name)}`
-      : `👤 ${esc(ME.name)}${ME.isAdmin ? ' · admin' : ''}`;
+      ? `${viewedBadge ? `<span class="rank-badge">${esc(viewedBadge)}</span>` : ''} Predicciones de ${esc(viewedUser.name)}`
+      : `${myBadge ? `<span class="rank-badge">${esc(myBadge)}</span>` : '👤'} ${esc(ME.name)}${ME.isAdmin ? ' · admin' : ''}`;
     $app().innerHTML = `
       <header class="topbar">
         <div class="topbar-left"><span class="logo">⚽ Quiniela Mundial 2026</span>
@@ -294,7 +299,8 @@
     if (!p) return back + `<div class="empty">Cargando predicciones...</div>`;
     const matches = p.matches || [];
     const s = p.summary || {};
-    const head = `<div class="player-sticky">${back}<div><h2>Predicciones de ${esc(p.user.name)}</h2><p class="sub">Partidos y cruces ya resueltos</p></div></div>`;
+    const badge = rankBadge(p.totals?.rank);
+    const head = `<div class="player-sticky">${back}<div class="player-title"><h2>${badge ? `<span class="rank-badge">${esc(badge)}</span>` : ''} Predicciones de ${esc(p.user.name)}</h2><p class="sub">Partidos y cruces ya resueltos</p></div></div>`;
     const summary = playerTotals(p.totals, s);
     const details = renderPredictionDetails(p);
     if (!matches.length) return head + summary + details + `<div class="empty">Todavia no hay partidos jugados para mostrar.</div>`;
