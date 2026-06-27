@@ -303,6 +303,19 @@ function publicChat(limit = 120) {
   }));
 }
 
+function publicRankingFor(user) {
+  const rows = Score.ranking().filter(r => user.isAdmin || !r.isAdmin);
+  let rank = 0, prev = null;
+  rows.forEach((r, i) => {
+    if (prev === null || r.total !== prev) {
+      rank = i + 1;
+      prev = r.total;
+    }
+    r.rank = rank;
+  });
+  return rows;
+}
+
 function buildState(user) {
   const data = Data.getData();
   const groupPred = db.predictions[user.username]?.group || {};
@@ -385,7 +398,7 @@ function buildState(user) {
         rules: CONFIG.scoring.final,
       };
     })(),
-    ranking: Score.ranking(),
+    ranking: publicRankingFor(user),
     feed: Score.socialFeed(80),
     chat: publicChat(120),
   };
