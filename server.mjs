@@ -148,40 +148,33 @@ function selectedTeamForNode(nodeId, code, cand) {
   return teamFromCode(code);
 }
 function buildUserBracketDetail(username, totals) {
-  const pred = db.predictions[username]?.bracket || {};
-  const picks = pred.picks || {};
-  const tree = buildTree();
-  const r32Teams = Data.resolveR32Teams();
-  const cand = candidatesFor(tree, r32Teams, picks);
-  const actual = Data.actualReached();
-  const nodes = [...tree.r32, ...tree.r16, ...tree.qf, ...tree.sf, tree.final];
-  const picksOut = nodes.filter(n => picks[n.id]).map(n => {
-    const targetRound = ADVANCED_TO[n.round];
-    const actualCodes = actual[targetRound] || [];
-    const resolved = actualCodes.length > 0;
-    const hit = resolved && actualCodes.includes(picks[n.id]);
-    return {
-      nodeId: n.id,
-      round: n.round,
-      roundName: ROUND_LABELS[n.round] || n.round,
-      advancesTo: targetRound,
-      pick: wf(selectedTeamForNode(n.id, picks[n.id], cand)),
-      resolved,
-      hit,
-      top4Bonus: n.round === 'QF' && hit,
-      finalistBonus: n.round === 'SF' && hit,
-    };
-  });
+  const ev = Score.evaluateBracket(username);
+  const toTeam = (code) => code ? wf(teamFromCode(code)) : null;
+  const nodes = ev.nodes.map(n => ({
+    ...n,
+    originalPickTeam: toTeam(n.originalPick),
+    recoveryPickTeam: toTeam(n.recoveryPick),
+    activePickTeam: toTeam(n.activePick),
+    recoveryOptions: (n.recoveryOptions || []).map(wf),
+    match: n.match ? { ...n.match, home: wf(n.match.home), away: wf(n.match.away) } : null,
+  }));
   return {
-    submitted: !!pred.submitted,
-    submittedAt: pred.at || null,
-    points: totals.points || 0,
-    correct: totals.correct || 0,
+    submitted: ev.submitted,
+    submittedAt: ev.submittedAt,
+    points: ev.points,
+    correct: ev.correct,
     top4: totals.top4 || 0,
     finalists: totals.finalists || 0,
-    hasResult: !!totals.hasResult,
-    picks: picksOut,
-    correctPicks: picksOut.filter(p => p.hit),
+    hasResult: ev.hasResult,
+    originalLive: ev.originalLive,
+    recoveredLive: ev.recoveredLive,
+    broken: ev.broken,
+    closed: ev.closed,
+    bestActive: ev.bestActive,
+    branches: ev.branches.map(b => ({ ...b, team: wf(b.team) })),
+    nodes,
+    picks: nodes,
+    correctPicks: nodes.filter(p => p.hit),
   };
 }
 function playerById(playerId) {
@@ -326,6 +319,7 @@ function buildState(user) {
       submittedAt: bracketPred.at || null,
       tree,
       yourPicks: bracketPred.picks || {},
+      detail: buildUserBracketDetail(user.username, Score.userBracketTotals(user.username)),
       actualReached: Data.actualReached(),
     },
     mvp: {
@@ -355,6 +349,7 @@ function buildState(user) {
       };
     })(),
     ranking: Score.ranking(),
+    feed: Score.socialFeed(80),
   };
 }
 
@@ -467,6 +462,24 @@ async function handleApi(req, res, pathname) {
     return sendJSON(res, 200, { ok: true });
   }
 
+  // --- Recuperar una rama rota en un cruce real de la llave ---
+  if (pathname === '/api/bracket/recovery' && method === 'POST') {
+    const b = await readBody(req);
+    const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
+    if (!pred.bracket?.submitted) return sendJSON(res, 403, { error: 'Primero debes haber enviado tu llave inicial.' });
+    const nodeId = String(b.nodeId || '');
+    const pick = String(b.pick || '');
+    const detail = buildUserBracketDetail(user.username, Score.userBracketTotals(user.username));
+    const node = detail.nodes.find(n => n.nodeId === nodeId);
+    if (!node || !node.recoveryOpen) return sendJSON(res, 403, { error: 'Este cruce no tiene recuperación abierta.' });
+    const valid = (node.recoveryOptions || []).some(t => t.code === pick);
+    if (!valid) return sendJSON(res, 400, { error: 'Equipo no válido para este cruce real.' });
+    pred.bracket.recoveries = pred.bracket.recoveries || {};
+    pred.bracket.recoveries[nodeId] = { pick, at: new Date().toISOString() };
+    saveDB();
+    return sendJSON(res, 200, { ok: true });
+  }
+
   // --- Enviar apuesta de Bota de Oro (una sola vez) ---
   if (pathname === '/api/mvp' && method === 'POST') {
     const b = await readBody(req);
@@ -495,6 +508,12 @@ async function handleApi(req, res, pathname) {
     let champ = h > a ? fw.teams.home.code : (h < a ? fw.teams.away.code : b.champion);
     const validChamp = fw.teams && (champ === fw.teams.home.code || champ === fw.teams.away.code);
     if (h === a && !validChamp) return sendJSON(res, 400, { error: 'Si pronosticas empate, elige quién levanta la copa.' });
+    const finalNode = Score.evaluateBracket(user.username).nodes.find(n => n.round === 'FINAL');
+    const projected = finalNode?.activePick || null;
+    if (projected && validChamp && champ !== projected) {
+      const projectedTeam = teamFromCode(projected);
+      return sendJSON(res, 400, { error: `Tu llave mantiene como campeon proyectado a ${projectedTeam.name}. El resultado de final debe ser acorde.` });
+    }
     pred.final = { submitted: true, at: new Date().toISOString(), score: { home: h, away: a }, champion: champ };
     saveDB();
     return sendJSON(res, 200, { ok: true });

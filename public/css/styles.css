@@ -98,6 +98,38 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .detail-line > span:first-child { color: var(--muted); font-size: .8rem; }
 .detail-line.ok { color: #b6f5e6; }
 .mini-team { display: inline-flex; align-items: center; gap: .35rem; font-weight: 700; }
+.detail-wide { grid-column: 1 / -1; }
+.player-sticky { position: sticky; top: 54px; z-index: 8; background: var(--bg); border-bottom: 1px solid var(--line);
+  margin: 0 -1.1rem .8rem; padding: .65rem 1.1rem; display: flex; align-items: center; gap: .75rem; }
+.player-sticky h2 { margin: 0; font-size: 1.15rem; }
+.social-feed { margin-top: 1.2rem; }
+.social-feed h3 { margin: 0 0 .2rem; color: var(--accent); }
+.feed-box { max-height: 340px; overflow-y: auto; background: rgba(14,35,48,.65); border: 1px solid var(--line);
+  border-radius: 12px; padding: .75rem; display: flex; flex-direction: column; gap: .55rem; }
+.feed-msg { max-width: 88%; align-self: flex-start; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px 12px 12px 4px; padding: .5rem .65rem; font-size: .9rem; }
+.feed-msg time { display: block; color: var(--muted); font-size: .72rem; margin-top: .25rem; }
+.feed-msg.group-exact, .feed-msg.final-exact { border-color: var(--accent); background: rgba(255,209,102,.13); }
+.feed-msg.bracket-hit, .feed-msg.bracket-recovered-hit, .feed-msg.final-champ { border-color: var(--primary); background: rgba(0,184,148,.13); }
+.feed-msg.bracket-broken, .feed-msg.bracket-recovered-broken { border-color: var(--danger); background: rgba(239,71,111,.12); }
+.empty.slim { padding: .8rem; }
+.branch-tree { margin-top: .8rem; display: grid; grid-template-columns: repeat(5, minmax(150px, 1fr)); gap: .75rem; overflow-x: auto; }
+.branch-tree h3 { grid-column: 1 / -1; margin: 0; color: var(--accent); }
+.branch-round { display: flex; flex-direction: column; gap: .45rem; min-width: 150px; }
+.branch-node { text-align: left; color: var(--text); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; padding: .55rem; cursor: pointer; display: grid; gap: .25rem; }
+.branch-node:hover { border-color: var(--done); }
+.branch-node.original { border-color: var(--primary); background: rgba(0,184,148,.13); }
+.branch-node.recovered, .branch-node.recovery-open { border-color: var(--done); background: rgba(78,168,222,.13); }
+.branch-node.won { border-color: var(--primary); box-shadow: inset 3px 0 0 var(--primary); }
+.branch-node.broken { border-color: var(--danger); background: rgba(239,71,111,.13); }
+.branch-node.closed { opacity: .72; background: rgba(159,182,194,.10); }
+.branch-meta { color: var(--muted); font-size: .78rem; }
+.branch-detail-panel, .recovery-panel { margin-top: .8rem; background: rgba(14,35,48,.65); border: 1px solid var(--line);
+  border-radius: 12px; padding: .8rem; }
+.recovery-panel h3 { margin: 0 0 .25rem; color: var(--accent); }
+.recovery-card { border-top: 1px dashed var(--line); padding-top: .55rem; margin-top: .55rem; }
+.recovery-options { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: .45rem; }
 
 /* Grupos */
 .group-block { margin-bottom: 1.2rem; }

@@ -17,7 +17,7 @@
   const euro = (n) => `${Number(n || 0).toLocaleString('es-ES')} €`;
 
   let STATE = null, ME = null;
-  const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null, testPhases: null, mvpPick: null, finalChamp: null, finalScore: {}, playerProfile: null };
+  const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null, testPhases: null, mvpPick: null, finalChamp: null, finalScore: {}, playerProfile: null, playerTreeOpen: false, branchDetailNode: null };
 
   async function api(path, opts = {}) {
     const r = await fetch(APP_BASE + '/api' + path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -102,7 +102,15 @@
         <td class="rank">${medal(r.rank)}</td>
         <td><span class="rank-user-name">${esc(r.name)}</span>${r.username === ME.username ? ' <span class="youtag">tú</span>' : ''}</td>
         <td class="pts-cell">${r.total}</td></tr>`).join('')}
-      </tbody></table>`;
+      </tbody></table>${renderSocialFeed()}`;
+  }
+
+  function renderSocialFeed() {
+    const feed = STATE.feed || [];
+    const body = feed.length
+      ? feed.map(e => `<div class="feed-msg ${esc(e.kind || '')}"><div>${esc(e.text)}</div><time>${fmt(e.at)}</time></div>`).join('')
+      : `<div class="empty slim">Aun no hay eventos resueltos para mostrar.</div>`;
+    return `<section class="social-feed"><h3>Feed de la quiniela</h3><p class="sub">Solo aparecen eventos de partidos o cruces ya cerrados.</p><div class="feed-box">${body}</div></section>`;
   }
 
   function playerTotals(t, fallbackGroup) {
@@ -120,9 +128,9 @@
         <span>Grupos <b>${group.combined || 0}</b></span>
         <span>Llave <b>${bracket.points || 0}</b></span>
         <span>Final <b>${final.points || 0}</b></span>
-        <span>Bota de Oro <b>${mvp.points || 0}</b></span>
+        <span>Goleador <b>${mvp.points || 0}</b></span>
       </div>
-      <div class="sub">Grupos: ${group.exactHits || 0} exactos, ${group.signHits || 0} ganador/empate. Llave: ${bracket.correct || 0} cruces, ${bracket.top4 || 0} top4, ${bracket.finalists || 0} finalistas.</div>
+      <div class="sub">Grupos: ${group.exactHits || 0} exactos, ${group.signHits || 0} ganador/empate. Llave: ${bracket.originalLive || 0} originales vivas, ${bracket.recoveredLive || 0} recuperadas vivas, ${(bracket.broken || 0) + (bracket.closed || 0)} rotas/cerradas, mejor racha activa +${bracket.bestActive || 0}.</div>
     </div>`;
   }
 
@@ -135,7 +143,7 @@
     const goals = p.goals != null ? ` · ${p.goals} goles` : '';
     return `<span class="mini-team">${flagImg(p.flag, 'flag flag-sm')}<span>${esc(p.name || p.id)}${goals}</span></span>`;
   }
-  function renderBracketDetail(d) {
+  function renderBracketDetailLegacy(d) {
     if (!d || !d.submitted) return `<div class="detail-card"><h3>Llave</h3><p class="sub">Sin llave enviada.</p></div>`;
     const correct = d.correctPicks || [];
     const rows = correct.length
@@ -145,6 +153,68 @@
       <p class="sub">${d.points || 0} pts · ${d.correct || 0} cruces · ${d.top4 || 0} top4 · ${d.finalists || 0} finalistas</p>
       ${rows}</div>`;
   }
+  function branchLabel(n) {
+    if (!n) return '';
+    if (n.hit) return `Gano +${n.points || 0} · proximo +${n.nextValue || 0}`;
+    if (n.status === 'broken') return 'Rota';
+    if (n.status === 'closed') return 'Cerrada';
+    if (n.branchType === 'recovered') return `Recuperada · +${n.branchValue || 3} si pasa`;
+    if (n.branchType === 'original') return `Original · +${n.branchValue || 3} si pasa`;
+    if (n.recoveryOpen) return 'Recuperacion abierta';
+    return 'Pendiente';
+  }
+  function branchClass(n) {
+    if (!n) return '';
+    if (n.status === 'broken') return 'broken';
+    if (n.status === 'closed') return 'closed';
+    if (n.hit) return 'won';
+    return n.branchType || (n.recoveryOpen ? 'recovery-open' : '');
+  }
+  function renderBranchTree(d, compact = false) {
+    const nodes = d?.nodes || [];
+    if (!nodes.length) return '';
+    const rounds = ['R32', 'R16', 'QF', 'SF', 'FINAL'];
+    const title = compact ? '' : '<h3>Arbol de llaves estimadas</h3>';
+    return `<div class="branch-tree">${title}${rounds.map(round => {
+      const items = nodes.filter(n => n.round === round);
+      if (!items.length) return '';
+      return `<div class="branch-round"><div class="round-head">${esc(items[0].roundName || round)}</div>${items.map(n => {
+        const team = n.activePickTeam || n.originalPickTeam || n.recoveryPickTeam;
+        return `<button class="branch-node ${branchClass(n)}" data-action="branch-detail" data-node="${esc(n.nodeId)}">
+          <span class="branch-team">${miniTeam(team)}</span><span class="branch-meta">${esc(branchLabel(n))}</span>
+        </button>`;
+      }).join('')}</div>`;
+    }).join('')}</div>`;
+  }
+  function renderSelectedBranchDetail(d) {
+    const n = (d?.nodes || []).find(x => x.nodeId === ui.branchDetailNode);
+    if (!n) return '';
+    const real = n.match ? `${esc(n.match.home.name)} - ${esc(n.match.away.name)}` : 'Cruce real no disponible';
+    const hit = n.hit ? miniTeam(n.activePickTeam) : '<span class="sub">sin acierto</span>';
+    const recovered = n.recoveryPickTeam ? miniTeam(n.recoveryPickTeam) : '<span class="sub">sin recuperacion</span>';
+    return `<div class="branch-detail-panel">
+      <button class="btn ghost sm" data-action="branch-detail-close">Cerrar detalle</button>
+      <div class="detail-line"><span>Ronda</span><b>${esc(n.roundName)}</b></div>
+      <div class="detail-line"><span>Prediccion original</span>${miniTeam(n.originalPickTeam)}</div>
+      <div class="detail-line"><span>Cruce real</span><b>${real}</b></div>
+      <div class="detail-line"><span>Equipo acertado</span>${hit}</div>
+      <div class="detail-line"><span>Rama recuperada</span>${recovered}</div>
+      <div class="detail-line"><span>Puntos</span><b>+${n.points || 0}</b><span class="sub">Proximo valor: ${n.nextValue ? '+' + n.nextValue : 'sin racha activa'}</span></div>
+    </div>`;
+  }
+  function renderBracketDetail(d) {
+    if (!d || !d.submitted) return `<div class="detail-card"><h3>Llave</h3><p class="sub">Sin llave enviada.</p></div>`;
+    const rows = (d.nodes || []).filter(n => n.resolved || n.recoveryOpen).slice(0, 8);
+    const body = rows.length
+      ? rows.map(n => `<div class="detail-line ${n.hit ? 'ok' : ''}"><span>${esc(n.roundName)}</span>${miniTeam(n.activePickTeam || n.originalPickTeam || n.recoveryPickTeam)}<b>${esc(branchLabel(n))}</b></div>`).join('')
+      : `<p class="sub">${d.hasResult ? 'No tiene cruces acertados resueltos todavia.' : 'La llave aun no tiene resultados para comparar.'}</p>`;
+    const tree = ui.playerTreeOpen ? renderBranchTree(d, true) + renderSelectedBranchDetail(d) : '';
+    return `<div class="detail-card detail-wide"><h3>Llave</h3>
+      <p class="sub">${d.points || 0} pts · ${d.correct || 0} aciertos · ${d.originalLive || 0} originales vivas · ${d.recoveredLive || 0} recuperadas vivas · mejor +${d.bestActive || 0}</p>
+      <button class="btn sm" data-action="player-tree-toggle">${ui.playerTreeOpen ? 'Ocultar arbol' : 'Ver arbol de llaves estimadas'}</button>
+      ${body}${tree}</div>`;
+  }
+
   function renderGoldenBootDetail(d) {
     if (!d || !d.submitted) return `<div class="detail-card"><h3>Bota de Oro</h3><p class="sub">Sin apuesta enviada.</p></div>`;
     const status = d.hasResult
@@ -175,7 +245,7 @@
     </div>`;
   }
 
-  function renderPlayerPredictions() {
+  function renderPlayerPredictionsLegacy() {
     const p = ui.playerProfile;
     const back = `<button class="btn ghost sm back-btn" data-action="player-back">← Volver a clasificación</button>`;
     if (!p) return back + `<div class="empty">Cargando predicciones...</div>`;
@@ -188,6 +258,21 @@
     const blocks = Object.entries(byGroup(matches)).sort().map(([k, ms]) =>
       `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(m => groupRowReadOnly(m, 'Pronóstico')).join('')}</div>`).join('');
     return back + head + summary + details + blocks;
+  }
+
+  function renderPlayerPredictions() {
+    const p = ui.playerProfile;
+    const back = `<button class="btn ghost sm back-btn" data-action="player-back">← Volver</button>`;
+    if (!p) return back + `<div class="empty">Cargando predicciones...</div>`;
+    const matches = p.matches || [];
+    const s = p.summary || {};
+    const head = `<div class="player-sticky">${back}<h2>${esc(p.user.name)}</h2></div><div class="section-head"><p>Solo se muestran predicciones de partidos o cruces ya resueltos.</p></div>`;
+    const summary = playerTotals(p.totals, s);
+    const details = renderPredictionDetails(p);
+    if (!matches.length) return head + summary + details + `<div class="empty">Todavia no hay partidos jugados para mostrar.</div>`;
+    const blocks = Object.entries(byGroup(matches)).sort().map(([k, ms]) =>
+      `<div class="group-block"><h3 class="group-title">Grupo ${esc(k)}</h3>${ms.map(m => groupRowReadOnly(m, 'Pronostico')).join('')}</div>`).join('');
+    return head + summary + details + blocks;
   }
 
   // --------------------------------------------------------- Grupos --------
@@ -335,10 +420,22 @@
     const champ = champTeam ? `<div class="champ-box"><span class="champ">🏆 Tu campeón: ${esc(champTeam.name)}</span></div>` : '';
     return `<div class="bracket-scroll"><div class="bracket">${colHtml}</div></div>${champ}`;
   }
-  function rulesBracket() {
+  function rulesBracketLegacy() {
     return `<div class="notice info">Reglas de la llave: <b>${STATE.rules.bracket.perWinner} pts</b> por cada cruce acertado, <b>+${STATE.rules.bracket.top4Bonus} pts</b> por cada semifinalista acertado y <b>+${STATE.rules.bracket.finalistBonus || 0} pts</b> por cada finalista acertado. Ejemplo: eliges a España en un cruce y avanza, +${STATE.rules.bracket.perWinner}; si la metiste en semifinales reales, +${STATE.rules.bracket.top4Bonus} extra; si además llega a la final, +${STATE.rules.bracket.finalistBonus || 0} extra.</div>`;
   }
-  function renderBracket() {
+  function rulesBracket() {
+    return `<div class="notice info">Reglas de la llave: cada rama viva empieza en <b>+3</b>. Si el equipo pasa, suma ese valor y la siguiente ronda vale <b>+1</b> mas: +3, +4, +5, +6, +7. Si la rama se rompe, solo puedes recuperar el cruce real abierto; una rama recuperada vuelve a empezar en <b>+3</b>.</div>`;
+  }
+  function renderRecoveryPanel(detail) {
+    const open = (detail?.nodes || []).filter(n => n.recoveryOpen);
+    if (!open.length) return '';
+    return `<div class="recovery-panel"><h3>Recuperaciones abiertas</h3><p class="sub">Solo aparecen cruces reales donde tu rama inicial ya no esta viva. Si aciertas, nace una rama recuperada desde +3.</p>
+      ${open.map(n => `<div class="recovery-card"><b>${esc(n.roundName)}</b><div class="recovery-options">
+        ${(n.recoveryOptions || []).map(t => `<button class="btn sm" data-action="recovery-pick" data-node="${esc(n.nodeId)}" data-code="${esc(t.code)}">${flagImg(t.flag, 'flag flag-sm')} ${esc(t.name)}</button>`).join('')}
+      </div></div>`).join('')}</div>`;
+  }
+
+  function renderBracketLegacy() {
     const b = STATE.bracket;
     const head = `<div class="section-head"><h2>🗝️ Llave eliminatoria</h2><p>Elige quién avanza en cada cruce hasta el campeón. Se envía <b>una sola vez</b>.</p></div>`;
     const submittedHead = `<div class="section-head"><h2>🗝️ Llave eliminatoria</h2><p>Tu llave ya fue enviada. Revisa el cuadro, los avances acertados y los bonus aplicados.</p></div>`;
@@ -355,6 +452,28 @@
     const complete = done >= total;
     return head + rulesBracket() +
       `<div class="notice warn">⚠️ Una vez envíes, <b>no podrás cambiarlo</b>. Haz clic en el equipo que avanza en cada cruce.</div>` +
+      renderBracketGrid(true) +
+      `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
+        <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
+  }
+
+  function renderBracket() {
+    const b = STATE.bracket;
+    const head = `<div class="section-head"><h2>Llave eliminatoria</h2><p>Elige quien avanza en cada cruce hasta el campeon. Se envia <b>una sola vez</b>.</p></div>`;
+    const submittedHead = `<div class="section-head"><h2>Llave eliminatoria</h2><p>Tu llave ya fue enviada. Revisa ramas, rachas y recuperaciones disponibles.</p></div>`;
+    if (b.submitted) {
+      return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + renderRecoveryPanel(b.detail) + renderBranchTree(b.detail) + renderBracketGrid(false);
+    }
+    if (!b.window.open) {
+      const why = b.window.passedDeadline ? 'La llave ya esta cerrada.' : 'La llave se abrira cuando terminen los grupos y se conozcan los 32 equipos.';
+      return head + `<div class="notice info">${why} Vista previa del cuadro:</div>` + renderBracketGrid(false);
+    }
+    if (!ui.bracketPicks) ui.bracketPicks = { ...(b.yourPicks || {}) };
+    const total = b.tree.r32.length + b.tree.r16.length + b.tree.qf.length + b.tree.sf.length + 1;
+    const done = Object.keys(ui.bracketPicks).filter(k => ui.bracketPicks[k]).length;
+    const complete = done >= total;
+    return head + rulesBracket() +
+      `<div class="notice warn">Una vez envies, <b>no podras cambiarlo</b>. Haz clic en el equipo que avanza en cada cruce.</div>` +
       renderBracketGrid(true) +
       `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
         <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
@@ -378,7 +497,11 @@
     if (!finalScoreReady(fs) || finalScoreDraw(fs)) return null;
     return Number(fs.home) > Number(fs.away) ? A : B;
   }
-  function syncFinalForm() {
+  function projectedFinalChampion() {
+    const finalNode = (STATE?.bracket?.detail?.nodes || []).find(n => n.round === 'FINAL');
+    return finalNode?.activePickTeam || null;
+  }
+  function syncFinalFormLegacy() {
     const f = STATE && STATE.final;
     if (!f || !f.teams || ui.tab !== 'final') return;
     const A = f.teams.home, B = f.teams.away, fs = ui.finalScore || {};
@@ -399,7 +522,32 @@
     if (status) status.textContent = ready ? 'listo para enviar' : (isDraw ? 'elige campeón' : 'pon el marcador');
     if (btn) btn.disabled = !ready;
   }
-  function finalForm(A, B) {
+  function syncFinalForm() {
+    const f = STATE && STATE.final;
+    if (!f || !f.teams || ui.tab !== 'final') return;
+    const A = f.teams.home, B = f.teams.away, fs = ui.finalScore || {};
+    const readyScore = finalScoreReady(fs);
+    const isDraw = finalScoreDraw(fs);
+    const implied = finalChampionFromScore(A, B, fs);
+    const projected = projectedFinalChampion();
+    const chosenCode = isDraw ? ui.finalChamp : implied?.code;
+    const contradicts = !!(projected && chosenCode && chosenCode !== projected.code);
+    const ready = readyScore && (!isDraw || !!ui.finalChamp) && !contradicts;
+    const champWrap = document.querySelector('[data-final-champ-wrap]');
+    const impliedBox = document.querySelector('[data-final-implied]');
+    const status = document.querySelector('[data-final-status]');
+    const btn = document.querySelector('[data-action="final-submit"]');
+    document.querySelectorAll('[data-action="final-champ"]').forEach(x => x.classList.toggle('sel', ui.finalChamp === x.dataset.code));
+    if (champWrap) champWrap.style.display = isDraw ? '' : 'none';
+    if (impliedBox) {
+      impliedBox.style.display = implied ? '' : 'none';
+      impliedBox.textContent = implied ? `Campeon segun tu marcador: ${implied.name}` : '';
+    }
+    if (status) status.textContent = contradicts ? `debe ganar ${projected.name}` : (ready ? 'listo para enviar' : (isDraw ? 'elige campeon' : 'pon el marcador'));
+    if (btn) btn.disabled = !ready;
+  }
+
+  function finalFormLegacy(A, B) {
     const champ = ui.finalChamp, fs = ui.finalScore || {};
     const teamBtn = (T) => `<button class="champ-btn ${champ === T.code ? 'sel' : ''}" data-action="final-champ" data-code="${esc(T.code)}">${flagImg(T.flag)}<span>${esc(T.name)}</span></button>`;
     const isDraw = finalScoreDraw(fs);
@@ -425,7 +573,7 @@
       <div class="sticky-submit"><span class="sub" data-final-status>${ready ? 'listo para enviar' : (isDraw ? 'elige campeón' : 'pon el marcador')}</span>
         <button class="btn primary" data-action="final-submit" ${ready ? '' : 'disabled'}>Enviar apuesta de la final (definitivo)</button></div>`;
   }
-  function renderFinal() {
+  function renderFinalLegacy() {
     const f = STATE.final;
     const head = `<div class="section-head"><h2>🏆 La Final</h2><p>Apuesta el <b>marcador exacto</b>. El campeón se deduce del marcador; si pronosticas empate, eliges quién levanta la copa. Se envía una sola vez.</p></div>`;
     const submittedHead = `<div class="section-head"><h2>🏆 La Final</h2><p>Tu apuesta de la final ya fue enviada. Revisa tu marcador, campeón elegido y puntos conseguidos.</p></div>`;
@@ -445,6 +593,59 @@
     }
     if (!f.open) return head + `<div class="notice info">La apuesta de la final está cerrada.</div>` + finalCard(A, B, f);
     return head + rules + `<div class="notice warn">⚠️ Una sola vez. Pon el marcador; solo tendrás que elegir campeón si marcas empate.</div>` + finalForm(A, B);
+  }
+
+  function finalForm(A, B) {
+    const champ = ui.finalChamp, fs = ui.finalScore || {};
+    const teamBtn = (T) => `<button class="champ-btn ${champ === T.code ? 'sel' : ''}" data-action="final-champ" data-code="${esc(T.code)}">${flagImg(T.flag)}<span>${esc(T.name)}</span></button>`;
+    const isDraw = finalScoreDraw(fs);
+    const implied = finalChampionFromScore(A, B, fs);
+    const projected = projectedFinalChampion();
+    const chosenCode = isDraw ? champ : implied?.code;
+    const contradicts = !!(projected && chosenCode && chosenCode !== projected.code);
+    const ready = finalScoreReady(fs) && (!isDraw || !!champ) && !contradicts;
+    return `
+      <div class="card">
+        <div class="final-row">
+          ${teamCell(A, 'home')}
+          <div class="match-center"><div class="score-area">
+            <input class="score-input" type="number" min="0" max="99" inputmode="numeric" data-final-side="home" value="${fs.home ?? ''}">
+            <span class="dash">-</span>
+            <input class="score-input" type="number" min="0" max="99" inputmode="numeric" data-final-side="away" value="${fs.away ?? ''}">
+          </div></div>
+          ${teamCell(B, 'away')}
+        </div>
+        <p class="sub" data-final-implied style="text-align:center;margin:.8rem 0 .3rem;${implied ? '' : 'display:none'}">${implied ? `Campeon segun tu marcador: ${esc(implied.name)}` : ''}</p>
+        <div data-final-champ-wrap style="${isDraw ? '' : 'display:none'}">
+          <p class="sub" style="text-align:center;margin:.8rem 0 .3rem">Si pronosticas empate tras prorroga, elige quien gana en penales.</p>
+          <div class="champ-pick">${teamBtn(A)}${teamBtn(B)}</div>
+        </div>
+      </div>
+      <div class="sticky-submit"><span class="sub" data-final-status>${contradicts ? `debe ganar ${esc(projected.name)}` : (ready ? 'listo para enviar' : (isDraw ? 'elige campeon' : 'pon el marcador'))}</span>
+        <button class="btn primary" data-action="final-submit" ${ready ? '' : 'disabled'}>Enviar apuesta de la final (definitivo)</button></div>`;
+  }
+  function renderFinal() {
+    const f = STATE.final;
+    const head = `<div class="section-head"><h2>La Final</h2><p>Apuesta el <b>marcador exacto</b>. Si marcas empate tras prorroga, debes elegir el ganador en penales.</p></div>`;
+    const submittedHead = `<div class="section-head"><h2>La Final</h2><p>Tu apuesta de la final ya fue enviada.</p></div>`;
+    if (!f.teams) return head + `<div class="empty">Se abrira cuando se conozcan los dos finalistas.</div>`;
+    const A = f.teams.home, B = f.teams.away;
+    const champName = (code) => code === A.code ? A.name : (code === B.code ? B.name : '—');
+    const rules = `<div class="notice info">Reglas: <b>${f.rules.exactScore} pts</b> por marcador exacto y <b>+${f.rules.championBonus} pts</b> por acertar el campeon. En empate, debes acertar tambien quien gana en penales.</div>`;
+    const projected = projectedFinalChampion();
+    const projectedNotice = projected ? `<div class="notice info">Tu llave mantiene como campeon proyectado a <b>${esc(projected.name)}</b>. El marcador de final debe ser acorde.</div>` : '';
+    if (f.submitted) {
+      let res = '';
+      if (f.actual) {
+        const ps = f.your.score, as = f.actual.score;
+        const exact = ps.home === as.home && ps.away === as.away;
+        const champHit = f.your.champion && f.actual.winner && f.your.champion === f.actual.winner;
+        res = `<div class="notice ${exact || champHit ? 'ok' : 'warn'}">Final real: ${as.home}-${as.away}, campeon ${esc(champName(f.actual.winner))}. ${exact ? 'marcador exacto acertado' : 'marcador exacto fallado'}${champHit ? ' · campeon acertado' : ''}</div>`;
+      }
+      return submittedHead + `<div class="notice ok">Tu apuesta: <b>${esc(A.name)} ${f.your.score.home}-${f.your.score.away} ${esc(B.name)}</b> · campeon: <b>${esc(champName(f.your.champion))}</b> (enviada ${fmt(f.submittedAt)}).</div>` + res + finalCard(A, B, f);
+    }
+    if (!f.open) return head + `<div class="notice info">La apuesta de la final esta cerrada.</div>` + finalCard(A, B, f);
+    return head + rules + projectedNotice + `<div class="notice warn">Una sola vez. Pon el marcador; solo tendras que elegir campeon si marcas empate.</div>` + finalForm(A, B);
   }
 
   // ----------------------------------------------------- Bota de Oro -------
@@ -573,12 +774,25 @@
       } else if (a === 'rank-user') {
         try {
           ui.playerProfile = await api(`/users/${encodeURIComponent(t.dataset.user)}/group-predictions`);
+          ui.playerTreeOpen = false;
+          ui.branchDetailNode = null;
           ui.tab = 'player';
           render();
         } catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'player-back') {
         ui.playerProfile = null;
         ui.tab = 'ranking';
+        render();
+      } else if (a === 'player-tree-toggle') {
+        ui.playerTreeOpen = !ui.playerTreeOpen;
+        ui.branchDetailNode = null;
+        render();
+      } else if (a === 'branch-detail') {
+        ui.branchDetailNode = t.dataset.node;
+        ui.playerTreeOpen = true;
+        render();
+      } else if (a === 'branch-detail-close') {
+        ui.branchDetailNode = null;
         render();
       } else if (a === 'logout') {
         try { await api('/logout', { method: 'POST' }); } catch {}
@@ -590,6 +804,9 @@
         render();
       } else if (a === 'bracket-submit') {
         try { await api('/bracket', { method: 'POST', body: JSON.stringify({ picks: ui.bracketPicks }) }); ui.bracketPicks = null; setNotice('✓ Llave enviada.', 'ok'); await loadState(); }
+        catch (err) { setNotice(err.message, 'err'); render(); }
+      } else if (a === 'recovery-pick') {
+        try { await api('/bracket/recovery', { method: 'POST', body: JSON.stringify({ nodeId: t.dataset.node, pick: t.dataset.code }) }); setNotice('Rama recuperada.', 'ok'); await loadState(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'mvp-pick') {
         ui.mvpPick = t.dataset.player; render();
