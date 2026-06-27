@@ -57,9 +57,9 @@
   function render() {
     const s = STATE;
     const nav = [['ranking', '🏆 Clasificación'], ['grupos', '📝 Grupos']];
-    if (ME.isAdmin || s.bracket.open || s.bracket.submitted) nav.push(['llave', '🗝️ Llave']);
-    if (ME.isAdmin || (s.final.teams && (s.final.open || s.final.submitted))) nav.push(['final', '🏆 Final']);
-    if (ME.isAdmin || s.mvp.open || s.mvp.submitted) nav.push(['mvp', '⭐ Bota de Oro']);
+    if (ME.isAdmin || s.bracket.visible || s.bracket.open || s.bracket.submitted) nav.push(['llave', '🗝️ Llave']);
+    if (ME.isAdmin || s.final.visible || (s.final.teams && (s.final.open || s.final.submitted))) nav.push(['final', '🏆 Final']);
+    if (ME.isAdmin || s.mvp.visible || s.mvp.open || s.mvp.submitted) nav.push(['mvp', '⭐ Bota de Oro']);
     nav.push(['cuenta', '👤 Cuenta']);
     if (ME.isAdmin) nav.push(['admin', '⚙️ Admin']);
     if (!nav.some(([k]) => k === ui.tab) && ui.tab !== 'player') ui.tab = 'ranking';

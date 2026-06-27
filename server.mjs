@@ -326,6 +326,8 @@ function buildState(user) {
     n.teams = { a: wf(t.a), b: wf(t.b) };
   });
   const bracketOpen = win.open && !bracketPred.submitted;
+  const bracketVisible = win.groupsFinished || !!bracketPred.submitted;
+  const mvpVisible = win.groupsFinished || !!mvpPred.submitted || !!Data.actualMvp();
 
   return {
     now: Data.now().toISOString(),
@@ -344,6 +346,7 @@ function buildState(user) {
       standings: enrichStandings(Data.computeStandings()),
     },
     bracket: {
+      visible: bracketVisible,
       open: bracketOpen,
       window: win,
       submitted: !!bracketPred.submitted,
@@ -354,6 +357,7 @@ function buildState(user) {
       actualReached: Data.actualReached(),
     },
     mvp: {
+      visible: mvpVisible,
       open: win.open && !mvpPred.submitted,
       window: win,
       submitted: !!mvpPred.submitted,
@@ -368,7 +372,9 @@ function buildState(user) {
     },
     final: (() => {
       const fw = Data.finalWindow();
+      const finalVisible = fw.teamsKnown || !!finalPred.submitted || !!Data.actualFinal();
       return {
+        visible: finalVisible,
         open: fw.open && !finalPred.submitted,
         window: { teamsKnown: fw.teamsKnown, passed: !!fw.passed },
         submitted: !!finalPred.submitted,
