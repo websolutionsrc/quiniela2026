@@ -58,7 +58,10 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .logo { font-weight: 800; }
 .source { font-size: .76rem; color: var(--muted); }
 .topbar-right { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
-.user-chip { background: var(--panel); border: 1px solid var(--line); padding: .35rem .7rem; border-radius: 999px; font-size: .92rem; font-weight: 800; }
+.user-chip { background: var(--panel); border: 1px solid var(--line); padding: .35rem .7rem; border-radius: 999px; font-size: .85rem; font-weight: 800; }
+.player-header-chip { display: flex; align-items: center; gap: .45rem; min-width: 0; }
+.player-header-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-top-back { flex: none; padding: .28rem .55rem; }
 .mainnav { display: flex; gap: .4rem; padding: .7rem 1.1rem; flex-wrap: wrap; }
 .nav-btn { background: var(--panel); border: 1px solid var(--line); color: var(--text);
   padding: .5rem .9rem; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: .9rem; }
@@ -101,10 +104,11 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .detail-wide { grid-column: 1 / -1; }
 .player-sticky { position: sticky; top: 54px; z-index: 8; background: var(--bg); border-bottom: 1px solid var(--line);
   margin: 0 -1.1rem .8rem; padding: .65rem 1.1rem; display: flex; align-items: center; gap: .75rem; }
-.player-sticky h2 { margin: 0; font-size: 1.22rem; font-weight: 900; }
+.player-sticky h2 { margin: 0; font-size: 1.15rem; font-weight: 900; }
 .player-sticky .back-btn { margin: 0; flex: none; }
 .player-title { min-width: 0; font-weight: 800; }
 .player-sticky .sub { display: block; margin-top: .1rem; }
+.player-detail-head h2 { font-size: 1.22rem; font-weight: 900; }
 .rank-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.65em; margin-right: .35rem; font-weight: 900; color: var(--accent); }
 .social-feed { margin-top: 1.2rem; }
 .social-feed h3 { margin: 0 0 .2rem; color: var(--accent); }
@@ -243,6 +247,7 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 @media (max-width: 560px) {
   .tname { font-size: .82rem; } .score-input { width: 40px; }
   .topbar-right { width: 100%; justify-content: space-between; }
+  .player-header-chip { flex: 1 1 auto; max-width: calc(100% - 4.5rem); }
   .bracket-scroll { margin: 0 -1.1rem; padding: 0 1.1rem 1rem; scroll-snap-type: x proximity; }
   .bracket { gap: 10px; min-width: 670px; }
   .round { min-width: 126px; scroll-snap-align: start; }

@@ -81,14 +81,14 @@
     const myRank = s.ranking?.find(r => r.username === ME.username)?.rank;
     const myBadge = rankBadge(myRank);
     const userChip = viewedUser
-      ? `${viewedBadge ? `<span class="rank-badge">${esc(viewedBadge)}</span>` : ''} Predicciones de ${esc(viewedUser.name)}`
+      ? `<button class="btn ghost sm player-top-back" data-action="player-back">← Volver</button><span>${viewedBadge ? `<span class="rank-badge">${esc(viewedBadge)}</span>` : ''} Predicciones de ${esc(viewedUser.name)}</span>`
       : `${myBadge ? `<span class="rank-badge">${esc(myBadge)}</span>` : '👤'} ${esc(ME.name)}${ME.isAdmin ? ' · admin' : ''}`;
     $app().innerHTML = `
       <header class="topbar">
         <div class="topbar-left"><span class="logo">⚽ Quiniela Mundial 2026</span>
           <span class="source">${src} · ${clock}</span></div>
         <div class="topbar-right">
-          <span class="user-chip">${userChip}</span>
+          <div class="user-chip ${viewedUser ? 'player-header-chip' : ''}">${userChip}</div>
           <button class="btn ghost sm" data-action="logout">Salir</button>
         </div>
       </header>
@@ -300,7 +300,7 @@
     const matches = p.matches || [];
     const s = p.summary || {};
     const badge = rankBadge(p.totals?.rank);
-    const head = `<div class="player-sticky">${back}<div class="player-title"><h2>${badge ? `<span class="rank-badge">${esc(badge)}</span>` : ''} Predicciones de ${esc(p.user.name)}</h2><p class="sub">Partidos y cruces ya resueltos</p></div></div>`;
+    const head = `<div class="section-head player-detail-head"><h2>${badge ? `<span class="rank-badge">${esc(badge)}</span>` : ''} Predicciones de ${esc(p.user.name)}</h2><p>Partidos y cruces ya resueltos</p></div>`;
     const summary = playerTotals(p.totals, s);
     const details = renderPredictionDetails(p);
     if (!matches.length) return head + summary + details + `<div class="empty">Todavia no hay partidos jugados para mostrar.</div>`;
