@@ -74,12 +74,16 @@
     else if (ui.tab === 'admin') content = renderAdmin();
     const src = s.source === 'datos-de-ejemplo' ? '🟡 Datos de ejemplo' : '🟢 ' + esc(s.source);
     const clock = (s.simulated ? '🕒 (simulado) ' : '🕒 ') + fmt(s.now);
+    const viewedUser = ui.tab === 'player' && ui.playerProfile?.user;
+    const userChip = viewedUser
+      ? `Predicciones de ${esc(viewedUser.name)}`
+      : `👤 ${esc(ME.name)}${ME.isAdmin ? ' · admin' : ''}`;
     $app().innerHTML = `
       <header class="topbar">
         <div class="topbar-left"><span class="logo">⚽ Quiniela Mundial 2026</span>
           <span class="source">${src} · ${clock}</span></div>
         <div class="topbar-right">
-          <span class="user-chip">👤 ${esc(ME.name)}${ME.isAdmin ? ' · admin' : ''}</span>
+          <span class="user-chip">${userChip}</span>
           <button class="btn ghost sm" data-action="logout">Salir</button>
         </div>
       </header>
@@ -266,7 +270,7 @@
     if (!p) return back + `<div class="empty">Cargando predicciones...</div>`;
     const matches = p.matches || [];
     const s = p.summary || {};
-    const head = `<div class="player-sticky">${back}<h2>${esc(p.user.name)}</h2></div><div class="section-head"><p>Solo se muestran predicciones de partidos o cruces ya resueltos.</p></div>`;
+    const head = `<div class="player-sticky">${back}<div><h2>Predicciones de ${esc(p.user.name)}</h2><p class="sub">Partidos y cruces ya resueltos</p></div></div>`;
     const summary = playerTotals(p.totals, s);
     const details = renderPredictionDetails(p);
     if (!matches.length) return head + summary + details + `<div class="empty">Todavia no hay partidos jugados para mostrar.</div>`;
