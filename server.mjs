@@ -541,7 +541,7 @@ async function handleApi(req, res, pathname) {
     const pick = String(b.pick || '');
     const detail = buildUserBracketDetail(user.username, Score.userBracketTotals(user.username));
     const node = detail.nodes.find(n => n.nodeId === nodeId);
-    if (!node || !node.recoveryOpen) return sendJSON(res, 403, { error: 'Este cruce no tiene recuperación abierta.' });
+    if (!node || !(node.recoveryOpen || node.revisionOpen)) return sendJSON(res, 403, { error: 'Este cruce no permite recuperacion o cambio ahora mismo.' });
     const valid = (node.recoveryOptions || []).some(t => t.code === pick);
     if (!valid) return sendJSON(res, 400, { error: 'Equipo no válido para este cruce real.' });
     pred.bracket.recoveries = pred.bracket.recoveries || {};

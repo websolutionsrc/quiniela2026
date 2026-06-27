@@ -539,6 +539,7 @@
   function branchLabel(n) {
     if (!n) return '';
     if (n.recoveryOpen) return 'Requiere accion: elige quien pasa';
+    if (n.revisionOpen) return 'Puedes cambiar antes del partido';
     if (n.hit) return `Acerto +${n.points || 0} · proximo +${n.nextValue || 0}`;
     if (n.status === 'broken') return n.actualWinnerTeam ? `Rama rota · paso ${n.actualWinnerTeam.name}` : 'Rama rota';
     if (n.branchType === 'recovered') return `Recuperada · +${n.branchValue || bracketBaseV2()} si pasa`;
@@ -549,6 +550,7 @@
   function branchClass(n) {
     if (!n) return '';
     if (n.recoveryOpen) return 'recovery-open';
+    if (n.revisionOpen) return 'revision-open';
     if (n.hit) return 'won';
     if (n.status === 'broken') return 'broken';
     if (n.branchType) return n.branchType;
@@ -563,8 +565,9 @@
       const items = nodes.filter(n => n.round === round);
       if (!items.length) return '';
       return `<div class="branch-round"><div class="round-head">${esc(items[0].roundName || round)}</div>${items.map(n => {
-        const actions = n.recoveryOpen
-          ? `<div class="branch-actions">${(n.recoveryOptions || []).map(t => `<button class="btn sm" data-action="recovery-pick" data-node="${esc(n.nodeId)}" data-code="${esc(t.code)}">${flagImg(t.flag, 'flag flag-sm')} ${esc(t.name)}</button>`).join('')}</div>`
+        const options = n.revisionOpen ? (n.recoveryOptions || []).filter(t => t.code !== n.activePick) : (n.recoveryOptions || []);
+        const actions = (n.recoveryOpen || n.revisionOpen) && options.length
+          ? `<div class="branch-actions">${options.map(t => `<button class="btn sm" data-action="recovery-pick" data-node="${esc(n.nodeId)}" data-code="${esc(t.code)}">${flagImg(t.flag, 'flag flag-sm')} ${esc(t.name)}</button>`).join('')}</div>`
           : '';
         return `<div class="branch-node ${branchClass(n)}" data-action="branch-detail" data-node="${esc(n.nodeId)}">
           <span class="branch-team">${branchNodeMainV2(n)}</span><span class="branch-meta">${esc(branchLabel(n))}</span>${actions}
@@ -609,6 +612,7 @@
   function tieStatusText(n) {
     if (!n) return 'Pendiente';
     if (n.recoveryOpen) return 'Requiere accion';
+    if (n.revisionOpen) return 'Puedes cambiar';
     if (n.hit) return `+${n.points || 0} · proximo +${n.nextValue || 0}`;
     if (n.status === 'broken') return 'Rama rota';
     if (n.branchType === 'recovered') return `Recuperada +${n.branchValue || bracketBaseV2()} si pasa`;
@@ -634,8 +638,9 @@
         ${col.nodes.map(node => {
           const nd = nodes[node.id] || null;
           const teams = statusTeamsForNode(node, cand, nd);
-          const actions = nd?.recoveryOpen
-            ? `<div class="tie-actions">${(nd.recoveryOptions || []).map(t => `<button class="btn sm" data-action="recovery-pick" data-node="${esc(nd.nodeId)}" data-code="${esc(t.code)}">${flagImg(t.flag, 'flag flag-sm')} ${esc(t.name)}</button>`).join('')}</div>`
+          const options = nd?.revisionOpen ? (nd.recoveryOptions || []).filter(t => t.code !== nd.activePick) : (nd?.recoveryOptions || []);
+          const actions = (nd?.recoveryOpen || nd?.revisionOpen) && options.length
+            ? `<div class="tie-actions">${options.map(t => `<button class="btn sm" data-action="recovery-pick" data-node="${esc(nd.nodeId)}" data-code="${esc(t.code)}">${flagImg(t.flag, 'flag flag-sm')} ${esc(t.name)}</button>`).join('')}</div>`
             : '';
           return `<div class="tie status-tie ${branchClass(nd)} ${ui.branchDetailNode === node.id ? 'selected' : ''}" data-action="branch-detail" data-node="${esc(node.id)}">
             <div class="tie-status">${esc(tieStatusText(nd))}</div>
@@ -654,7 +659,9 @@
     const hit = n.hit ? miniTeam(n.activePickTeam || n.actualWinnerTeam) : '<span class="sub">sin acierto</span>';
     const recovered = n.recoveryPickTeam ? miniTeam(n.recoveryPickTeam) : '<span class="sub">sin recuperacion</span>';
     const actual = n.actualWinnerTeam ? miniTeam(n.actualWinnerTeam) : '<span class="sub">pendiente</span>';
-    const action = n.recoveryOpen ? `<div class="detail-line warn"><span>Accion pendiente</span><b>Recupera este cruce en amarillo</b></div>` : '';
+    const action = n.recoveryOpen
+      ? `<div class="detail-line warn"><span>Accion pendiente</span><b>Recupera este cruce en amarillo</b></div>`
+      : (n.revisionOpen ? `<div class="detail-line warn"><span>Cambio opcional</span><b>Puedes cambiar de equipo antes del partido</b></div>` : '');
     return `<div class="branch-detail-panel">
       <button class="btn ghost sm" data-action="branch-detail-close">Cerrar detalle</button>
       <div class="detail-line"><span>Ronda</span><b>${esc(n.roundName)}</b></div>
