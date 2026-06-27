@@ -378,7 +378,7 @@
       const body = pendingMatches.length
         ? blocks
         : `<div class="empty">Todos los partidos de grupos ya finalizaron. Puedes consultar el desglose de puntos desde Clasificacion.</div>`;
-      return headSubmitted + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + body;
+      return headSubmitted + `<div class="notice ok">✓ Enviaste tus predicciones el ${fmt(g.submittedAt)}. No se pueden cambiar.</div>` + body + standings;
     }
     if (g.open) {
       const up = new Set(g.upcomingIds);

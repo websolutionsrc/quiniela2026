@@ -10,6 +10,9 @@ const clone = (x) => JSON.parse(JSON.stringify(x));
 export const TEST_PHASES = [
   { id: 'groups_open', name: 'Grupos abiertos', description: 'Partidos de grupo pendientes para probar predicciones.' },
   { id: 'bracket_open', name: 'Llave abierta', description: 'Grupos terminados y cuadro listo para enviar llave/Bota de Oro.' },
+  { id: 'r16_open', name: 'Octavos abiertos', description: '1/16 resueltos y octavos disponibles para validar ramas y recuperaciones.' },
+  { id: 'qf_open', name: 'Cuartos abiertos', description: 'Octavos resueltos y cuartos disponibles para probar rachas v2.' },
+  { id: 'sf_open', name: 'Semifinales abiertas', description: 'Cuartos resueltos y semifinales disponibles para validar top4 y ramas vivas.' },
   { id: 'final_open', name: 'Final abierta', description: 'Finalistas conocidos y apuesta de final disponible.' },
   { id: 'tournament_finished', name: 'Torneo terminado', description: 'Final terminada para validar puntuaciones finales.' },
 ];
@@ -65,15 +68,27 @@ function finishedGroups() {
   });
 }
 
-function ko(id, phase, home, away, score, winner, utcDate) {
-  return { id, phase, group: null, matchday: null, utcDate, status: 'FINISHED', home, away, score, winner };
+const r32Winners = ['MEX', 'NED', 'ARG', 'ESP', 'POR', 'ENG', 'USA', 'BEL', 'FRA', 'GER', 'COL', 'ITA', 'DEN', 'POL', 'NOR', 'CIV'];
+const r16Ties = [
+  ['MEX', 'NED', 'MEX'], ['ARG', 'ESP', 'ARG'], ['POR', 'ENG', 'POR'], ['USA', 'BEL', 'USA'],
+  ['FRA', 'GER', 'FRA'], ['COL', 'ITA', 'COL'], ['DEN', 'POL', 'DEN'], ['NOR', 'CIV', 'NOR'],
+];
+const qfTies = [['MEX', 'ARG', 'ARG'], ['POR', 'USA', 'POR'], ['FRA', 'COL', 'FRA'], ['DEN', 'NOR', 'DEN']];
+const sfTies = [['ARG', 'POR', 'ARG'], ['FRA', 'DEN', 'FRA']];
+
+function ko(id, phase, home, away, score, winner, utcDate, status = 'FINISHED') {
+  return { id, phase, group: null, matchday: null, utcDate, status, home, away, score, winner };
 }
 
-function knockoutThroughSemis() {
+function teamIndex() {
   const b = SAMPLE.bracketDemo;
-  const r32Winners = ['MEX', 'NED', 'ARG', 'ESP', 'POR', 'ENG', 'USA', 'BEL', 'FRA', 'GER', 'COL', 'ITA', 'DEN', 'POL', 'NOR', 'CIV'];
   const teamByCode = {};
   Object.values(b).forEach(tie => [tie.a, tie.b].forEach(t => { teamByCode[t.code] = t; }));
+  return teamByCode;
+}
+
+function r32FinishedMatches() {
+  const b = SAMPLE.bracketDemo;
   const matches = [];
 
   Object.entries(b)
@@ -82,20 +97,35 @@ function knockoutThroughSemis() {
       const winner = r32Winners[i];
       matches.push(ko(`test-${nodeId}`, 'R32', tie.a, tie.b, FT(2, 1), winner, '2026-06-29T18:00:00Z'));
     });
+  return matches;
+}
 
-  const r16 = [
-    ['MEX', 'NED', 'MEX'], ['ARG', 'ESP', 'ARG'], ['POR', 'ENG', 'POR'], ['USA', 'BEL', 'USA'],
-    ['FRA', 'GER', 'FRA'], ['COL', 'ITA', 'COL'], ['DEN', 'POL', 'DEN'], ['NOR', 'CIV', 'NOR'],
-  ];
-  r16.forEach(([h, a, w], i) => matches.push(ko(`test-r16-${i + 1}`, 'R16', teamByCode[h], teamByCode[a], FT(1, 0), w, '2026-07-05T18:00:00Z')));
+function roundMatches(ties, phase, prefix, utcDate, status = 'FINISHED') {
+  const teamByCode = teamIndex();
+  return ties.map(([h, a, w], i) => ko(
+    `test-${prefix}-${i + 1}`,
+    phase,
+    teamByCode[h],
+    teamByCode[a],
+    status === 'FINISHED' ? (phase === 'QF' ? FT(2, 0) : FT(1, 0)) : null,
+    status === 'FINISHED' ? w : null,
+    utcDate,
+    status,
+  ));
+}
 
-  const qf = [['MEX', 'ARG', 'ARG'], ['POR', 'USA', 'POR'], ['FRA', 'COL', 'FRA'], ['DEN', 'NOR', 'DEN']];
-  qf.forEach(([h, a, w], i) => matches.push(ko(`test-qf-${i + 1}`, 'QF', teamByCode[h], teamByCode[a], FT(2, 0), w, '2026-07-10T18:00:00Z')));
+function knockoutForPhase(id) {
+  const matches = [...r32FinishedMatches()];
+  if (id === 'r16_open') return { matches: [...matches, ...roundMatches(r16Ties, 'R16', 'r16', '2026-07-05T18:00:00Z', 'TIMED')], teamByCode: teamIndex() };
 
-  const sf = [['ARG', 'POR', 'ARG'], ['FRA', 'DEN', 'FRA']];
-  sf.forEach(([h, a, w], i) => matches.push(ko(`test-sf-${i + 1}`, 'SF', teamByCode[h], teamByCode[a], FT(2, 1), w, '2026-07-15T18:00:00Z')));
+  matches.push(...roundMatches(r16Ties, 'R16', 'r16', '2026-07-05T18:00:00Z'));
+  if (id === 'qf_open') return { matches: [...matches, ...roundMatches(qfTies, 'QF', 'qf', '2026-07-10T18:00:00Z', 'TIMED')], teamByCode: teamIndex() };
 
-  return { matches, teamByCode };
+  matches.push(...roundMatches(qfTies, 'QF', 'qf', '2026-07-10T18:00:00Z'));
+  if (id === 'sf_open') return { matches: [...matches, ...roundMatches(sfTies, 'SF', 'sf', '2026-07-15T18:00:00Z', 'TIMED')], teamByCode: teamIndex() };
+
+  matches.push(...roundMatches(sfTies, 'SF', 'sf', '2026-07-15T18:00:00Z').map(m => ({ ...m, score: FT(2, 1) })));
+  return { matches, teamByCode: teamIndex() };
 }
 
 export function buildTestPhase(id) {
@@ -116,7 +146,23 @@ export function buildTestPhase(id) {
     });
   }
 
-  const { matches: koMatches, teamByCode } = knockoutThroughSemis();
+  if (id === 'r16_open' || id === 'qf_open' || id === 'sf_open') {
+    const nowByPhase = {
+      r16_open: '2026-07-04T12:00:00Z',
+      qf_open: '2026-07-09T12:00:00Z',
+      sf_open: '2026-07-14T12:00:00Z',
+    };
+    const { matches: koMatches } = knockoutForPhase(id);
+    return meta(id, nowByPhase[id], [...groupMatches, ...koMatches], {
+      bracketDemo: clone(SAMPLE.bracketDemo),
+      mvpCandidates: clone(testMvpCandidates),
+      mvpCandidatesLocked: true,
+      mvpCandidatesAt: '2026-06-27T12:00:00Z',
+      mvpCandidatesSource: 'test',
+    });
+  }
+
+  const { matches: koMatches, teamByCode } = knockoutForPhase(id);
   const finalBase = {
     id: 'test-final',
     phase: 'FINAL',
