@@ -154,6 +154,15 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .recovery-panel h3 { margin: 0 0 .25rem; color: var(--accent); }
 .recovery-card { border-top: 1px dashed var(--line); padding-top: .55rem; margin-top: .55rem; }
 .recovery-options { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: .45rem; }
+.branch-node.recovery-open { border-color: var(--accent); background: rgba(255,209,102,.16); box-shadow: inset 3px 0 0 var(--accent); }
+.branch-node.recovered { border-color: var(--done); background: rgba(78,168,222,.13); }
+.branch-node.closed { opacity: 1; background: var(--panel); }
+.branch-node.inactive { border-style: dashed; opacity: .86; }
+.branch-node.won { background: rgba(0,184,148,.14); }
+.branch-match { display: grid; gap: .2rem; }
+.branch-match .vs { color: var(--muted); font-size: .72rem; text-transform: uppercase; }
+.branch-actions { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .35rem; }
+.detail-line.warn { border-color: rgba(255,209,102,.35); background: rgba(255,209,102,.08); }
 
 /* Grupos */
 .group-block { margin-bottom: 1.2rem; }

@@ -175,6 +175,7 @@ function buildUserBracketDetail(username, totals) {
     originalPickTeam: toTeam(n.originalPick),
     recoveryPickTeam: toTeam(n.recoveryPick),
     activePickTeam: toTeam(n.activePick),
+    actualWinnerTeam: toTeam(n.actualWinner),
     recoveryOptions: (n.recoveryOptions || []).map(wf),
     match: n.match ? { ...n.match, home: wf(n.match.home), away: wf(n.match.away) } : null,
   }));
@@ -191,6 +192,7 @@ function buildUserBracketDetail(username, totals) {
     broken: ev.broken,
     closed: ev.closed,
     bestActive: ev.bestActive,
+    actionRequired: ev.actionRequired,
     branches: ev.branches.map(b => ({ ...b, team: wf(b.team) })),
     nodes,
     picks: nodes,
