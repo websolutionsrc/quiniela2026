@@ -341,8 +341,29 @@ function buildState(user) {
     n.teams = { a: wf(t.a), b: wf(t.b) };
   });
   const bracketOpen = win.open && !bracketPred.submitted;
-  const bracketVisible = win.groupsFinished;
+  const bracketVisible = !!bracketPred.submitted || win.groupsFinished || Data.bracketPreviewAvailable();
+  const bracketDetail = buildUserBracketDetail(user.username, Score.userBracketTotals(user.username));
   const mvpVisible = win.groupsFinished || !!mvpPred.submitted || !!Data.actualMvp();
+  const fw = Data.finalWindow();
+  const finalVisible = fw.teamsKnown || !!finalPred.submitted || !!Data.actualFinal();
+  const finalState = {
+    visible: finalVisible,
+    open: fw.open && !finalPred.submitted,
+    window: { teamsKnown: fw.teamsKnown, passed: !!fw.passed },
+    submitted: !!finalPred.submitted,
+    submittedAt: finalPred.at || null,
+    teams: fw.teams ? { home: wf(fw.teams.home), away: wf(fw.teams.away), utcDate: fw.teams.utcDate } : null,
+    your: finalPred.submitted ? { score: finalPred.score, champion: finalPred.champion } : null,
+    actual: Data.actualFinal(),
+    rules: CONFIG.scoring.final,
+  };
+  const actions = [];
+  if (bracketOpen) actions.push({ tab: 'llave', level: 'warn', label: 'Llave pendiente', text: 'Ya puedes enviar tu llave inicial.' });
+  if (bracketDetail.actionRequired) actions.push({ tab: 'llave', level: 'warn', label: 'Llave requiere accion', text: `${bracketDetail.actionRequired} cruce${bracketDetail.actionRequired === 1 ? '' : 's'} para recuperar.` });
+  const revisions = bracketDetail.nodes.filter(n => n.revisionOpen).length;
+  if (revisions) actions.push({ tab: 'llave', level: 'info', label: 'Cambios disponibles', text: `${revisions} cruce${revisions === 1 ? '' : 's'} se puede${revisions === 1 ? '' : 'n'} cambiar antes del partido.` });
+  if (win.open && !mvpPred.submitted) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: 'Falta elegir goleador del torneo.' });
+  if (finalState.open) actions.push({ tab: 'final', level: 'warn', label: 'Final pendiente', text: 'Falta enviar la apuesta de la final.' });
 
   return {
     now: Data.now().toISOString(),
@@ -368,7 +389,7 @@ function buildState(user) {
       submittedAt: bracketPred.at || null,
       tree,
       yourPicks: bracketPred.picks || {},
-      detail: buildUserBracketDetail(user.username, Score.userBracketTotals(user.username)),
+      detail: bracketDetail,
       actualReached: Data.actualReached(),
     },
     mvp: {
@@ -385,21 +406,8 @@ function buildState(user) {
       candidatesLocked: !!data.mvpCandidatesLocked,
       candidatesAt: data.mvpCandidatesAt || null,
     },
-    final: (() => {
-      const fw = Data.finalWindow();
-      const finalVisible = fw.teamsKnown || !!finalPred.submitted || !!Data.actualFinal();
-      return {
-        visible: finalVisible,
-        open: fw.open && !finalPred.submitted,
-        window: { teamsKnown: fw.teamsKnown, passed: !!fw.passed },
-        submitted: !!finalPred.submitted,
-        submittedAt: finalPred.at || null,
-        teams: fw.teams ? { home: wf(fw.teams.home), away: wf(fw.teams.away), utcDate: fw.teams.utcDate } : null,
-        your: finalPred.submitted ? { score: finalPred.score, champion: finalPred.champion } : null,
-        actual: Data.actualFinal(),
-        rules: CONFIG.scoring.final,
-      };
-    })(),
+    final: finalState,
+    actions,
     ranking: publicRankingFor(user),
     feed: Score.socialFeed(80),
     chat: publicChat(120),

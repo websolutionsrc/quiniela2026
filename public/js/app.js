@@ -54,6 +54,17 @@
   }
 
   // ------------------------------------------------------- App shell -------
+  function tabActionCount(tab) {
+    return (STATE.actions || []).filter(a => a.tab === tab && a.level === 'warn').length;
+  }
+  function renderActionAlerts() {
+    const actions = STATE.actions || [];
+    if (!actions.length) return '';
+    return `<div class="action-alerts">${actions.map(a =>
+      `<button class="action-alert ${esc(a.level || 'info')}" data-action="tab" data-tab="${esc(a.tab)}">
+        <b>${esc(a.label)}</b><span>${esc(a.text)}</span>
+      </button>`).join('')}</div>`;
+  }
   function render() {
     const s = STATE;
     const nav = [['ranking', '🏆 Clasificación'], ['grupos', '📝 Grupos']];
@@ -63,7 +74,10 @@
     nav.push(['cuenta', '👤 Cuenta']);
     if (ME.isAdmin) nav.push(['admin', '⚙️ Admin']);
     if (!nav.some(([k]) => k === ui.tab) && ui.tab !== 'player') ui.tab = 'ranking';
-    const navHtml = nav.map(([k, l]) => `<button class="nav-btn ${ui.tab === k ? 'active' : ''}" data-action="tab" data-tab="${k}">${l}</button>`).join('');
+    const navHtml = nav.map(([k, l]) => {
+      const count = tabActionCount(k);
+      return `<button class="nav-btn ${ui.tab === k ? 'active' : ''}" data-action="tab" data-tab="${k}">${l}${count ? `<span class="nav-badge">${count}</span>` : ''}</button>`;
+    }).join('');
     let content = '';
     if (ui.tab === 'ranking') content = renderRanking();
     else if (ui.tab === 'player') content = renderPlayerPredictions();
@@ -93,7 +107,7 @@
         </div>
       </header>
       <nav class="mainnav">${navHtml}</nav>
-      <main class="content">${ui.notice ? `<div class="notice ${ui.notice.type}" role="alert">${esc(ui.notice.msg)}</div>` : ''}${content}</main>`;
+      <main class="content">${ui.notice ? `<div class="notice ${ui.notice.type}" role="alert">${esc(ui.notice.msg)}</div>` : ''}${renderActionAlerts()}${content}</main>`;
     ui.notice = null;
   }
 
