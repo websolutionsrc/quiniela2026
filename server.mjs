@@ -339,7 +339,7 @@ function buildState(user) {
     n.teams = { a: wf(t.a), b: wf(t.b) };
   });
   const bracketOpen = win.open && !bracketPred.submitted;
-  const bracketVisible = win.groupsFinished || !!bracketPred.submitted;
+  const bracketVisible = win.groupsFinished;
   const mvpVisible = win.groupsFinished || !!mvpPred.submitted || !!Data.actualMvp();
 
   return {
