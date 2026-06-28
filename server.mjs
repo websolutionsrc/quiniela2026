@@ -374,12 +374,12 @@ function buildState(user) {
   };
   const actions = [];
   const deadlineText = bettingDeadlineText(win);
-  if (bracketOpen) actions.push({ tab: 'llave', level: 'warn', label: 'Llave pendiente', text: `Se aceptan apuestas de llaves ${deadlineText}.` });
+  if (bracketOpen) actions.push({ tab: 'llave', level: 'warn', label: 'Llave pendiente', text: `Se acepta envio de llaves ${deadlineText}.` });
   if (bracketDetail.actionRequired) actions.push({ tab: 'llave', level: 'warn', label: 'Llave requiere accion', text: `${bracketDetail.actionRequired} cruce${bracketDetail.actionRequired === 1 ? '' : 's'} para recuperar.` });
   const revisions = bracketDetail.nodes.filter(n => n.revisionOpen).length;
   if (revisions) actions.push({ tab: 'llave', level: 'info', label: 'Cambios disponibles', text: `${revisions} cruce${revisions === 1 ? '' : 's'} se puede${revisions === 1 ? '' : 'n'} cambiar antes del partido.` });
-  if (mvpOpen) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: `Se aceptan apuestas de Bota de Oro ${deadlineText}.` });
-  if (finalState.open) actions.push({ tab: 'final', level: 'warn', label: 'Final pendiente', text: 'Falta enviar la apuesta de la final.' });
+  if (mvpOpen) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: `Se acepta envio de Bota de Oro ${deadlineText}.` });
+  if (finalState.open) actions.push({ tab: 'final', level: 'warn', label: 'Final pendiente', text: 'Falta enviar la prediccion de la final.' });
 
   return {
     now: Data.now().toISOString(),
@@ -574,15 +574,15 @@ async function handleApi(req, res, pathname) {
     return sendJSON(res, 200, { ok: true });
   }
 
-  // --- Enviar apuesta de Bota de Oro (una sola vez) ---
+  // --- Enviar prediccion de Bota de Oro (una sola vez) ---
   if (pathname === '/api/mvp' && method === 'POST') {
     const b = await readBody(req);
     const win = Data.bracketWindow();
     const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
     if (!(win.groupsFinished && !win.passedDeadline && Data.mvpCandidates().length > 0 && !Data.actualMvp())) {
-      return sendJSON(res, 403, { error: 'La apuesta de Bota de Oro aún no está abierta.' });
+      return sendJSON(res, 403, { error: 'La prediccion de Bota de Oro aun no esta abierta.' });
     }
-    if (pred.mvp && pred.mvp.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu apuesta de Bota de Oro.' });
+    if (pred.mvp && pred.mvp.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu prediccion de Bota de Oro.' });
     const valid = Data.mvpCandidates().some(p => p.id === b.playerId);
     if (!valid) return sendJSON(res, 400, { error: 'Jugador no válido.' });
     pred.mvp = { submitted: true, at: new Date().toISOString(), playerId: b.playerId };
@@ -590,13 +590,13 @@ async function handleApi(req, res, pathname) {
     return sendJSON(res, 200, { ok: true });
   }
 
-  // --- Enviar apuesta de la Final (una sola vez) ---
+  // --- Enviar prediccion de la Final (una sola vez) ---
   if (pathname === '/api/final' && method === 'POST') {
     const b = await readBody(req);
     const fw = Data.finalWindow();
     const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
-    if (!fw.open) return sendJSON(res, 403, { error: 'La apuesta de la final aún no está disponible.' });
-    if (pred.final && pred.final.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu apuesta de la final.' });
+    if (!fw.open) return sendJSON(res, 403, { error: 'La prediccion de la final aun no esta disponible.' });
+    if (pred.final && pred.final.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu prediccion de la final.' });
     const sc = b.score || {};
     const h = Number(sc.home), a = Number(sc.away);
     if (!Number.isInteger(h) || !Number.isInteger(a) || h < 0 || a < 0 || h > 99 || a > 99)

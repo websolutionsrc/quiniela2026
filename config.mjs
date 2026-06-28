@@ -45,7 +45,7 @@ export const CONFIG = {
       top4Bonus: 5,     // extra por cada semifinalista (top 4) acertado
       finalistBonus: 6, // extra por cada finalista acertado
     },
-    // La Final: apuesta especial cuando se conocen los finalistas.
+    // La Final: prediccion especial cuando se conocen los finalistas.
     final: {
       exactScore: 7,     // marcador exacto de la final (90'/tiempo reglamentario)
       signPartial: 0,    // sin puntos por signo en la final

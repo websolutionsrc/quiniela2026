@@ -201,7 +201,7 @@
     return `<span class="mini-team">${flagImg(t.flag, 'flag flag-sm')}<span>${esc(t.name || t.code || '—')}</span></span>`;
   }
   function miniPlayer(p) {
-    if (!p) return '<span class="sub">sin apuesta</span>';
+    if (!p) return '<span class="sub">sin prediccion</span>';
     const goals = p.goals != null ? ` · ${p.goals} goles` : '';
     return `<span class="mini-team">${flagImg(p.flag, 'flag flag-sm')}<span>${esc(p.name || p.id)}${goals}</span></span>`;
   }
@@ -278,17 +278,17 @@
   }
 
   function renderGoldenBootDetail(d) {
-    if (!d || !d.submitted) return `<div class="detail-card"><h3>Bota de Oro</h3><p class="sub">Sin apuesta enviada.</p></div>`;
+    if (!d || !d.submitted) return `<div class="detail-card"><h3>Bota de Oro</h3><p class="sub">Sin prediccion enviada.</p></div>`;
     const status = d.hasResult
       ? (d.hit ? `<span class="pts hit">Acertada +${d.points || 0}</span>` : `<span class="pts">Fallada +0</span>`)
       : `<span class="pts">Pendiente</span>`;
     const actual = d.actual ? `<div class="detail-line"><span>Ganador real</span>${miniPlayer(d.actual)}</div>` : '';
     return `<div class="detail-card"><h3>Bota de Oro</h3>
-      <div class="detail-line"><span>Apuesta</span>${miniPlayer(d.picked)}${status}</div>
+      <div class="detail-line"><span>Prediccion</span>${miniPlayer(d.picked)}${status}</div>
       ${actual}</div>`;
   }
   function renderFinalDetail(d) {
-    if (!d || !d.submitted) return `<div class="detail-card"><h3>Final</h3><p class="sub">Sin apuesta enviada.</p></div>`;
+    if (!d || !d.submitted) return `<div class="detail-card"><h3>Final</h3><p class="sub">Sin prediccion enviada.</p></div>`;
     const teams = d.teams ? `${esc(d.teams.home.name)} vs ${esc(d.teams.away.name)}` : 'Final';
     const pred = d.score ? `${d.score.home}-${d.score.away}` : '—';
     const actual = d.actual ? `<div class="detail-line"><span>Resultado real</span><b>${d.actual.score.home}-${d.actual.score.away}</b>${miniTeam(d.actual.winner)}</div>` : '';
@@ -296,7 +296,7 @@
     const champ = d.hasResult ? `<span class="pts ${d.champHit ? 'hit' : ''}">Campeón +${d.champHit ? STATE.rules.final.championBonus : 0}</span>` : `<span class="pts">Pendiente</span>`;
     return `<div class="detail-card"><h3>Final</h3>
       <p class="sub">${esc(teams)} · ${d.points || 0} pts</p>
-      <div class="detail-line"><span>Apuesta</span><b>${pred}</b>${miniTeam(d.champion)}${exact}${champ}</div>
+      <div class="detail-line"><span>Prediccion</span><b>${pred}</b>${miniTeam(d.champion)}${exact}${champ}</div>
       ${actual}</div>`;
   }
   function renderPredictionDetails(p) {
@@ -519,7 +519,7 @@
     const complete = done >= total;
     const deadline = bettingDeadlineText(b.window?.deadline);
     return head + rulesBracket() +
-      `<div class="notice warn">Se aceptan apuestas de llaves ${deadline}. Una vez envies, <b>no podras cambiarlo</b>.</div>` +
+      `<div class="notice warn">Se acepta envio de llaves ${deadline}. Una vez envies, <b>no podras cambiarlo</b>.</div>` +
       renderBracketGrid(true) +
       `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
         <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
@@ -546,7 +546,7 @@
     const complete = done >= total;
     const deadline = bettingDeadlineText(b.window?.deadline);
     return head + rulesBracket() +
-      `<div class="notice warn">Se aceptan apuestas de llaves ${deadline}. Una vez envies, <b>no podras cambiarlo</b>.</div>` +
+      `<div class="notice warn">Se acepta envio de llaves ${deadline}. Una vez envies, <b>no podras cambiarlo</b>.</div>` +
       renderBracketGrid(true) +
       `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
         <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
@@ -744,7 +744,7 @@
     const complete = done >= total;
     const deadline = bettingDeadlineText(b.window?.deadline);
     return head + rulesBracket() +
-      `<div class="notice warn">Se aceptan apuestas de llaves ${deadline}. Una vez envies, <b>no podras cambiarlo</b>.</div>` +
+      `<div class="notice warn">Se acepta envio de llaves ${deadline}. Una vez envies, <b>no podras cambiarlo</b>.</div>` +
       renderBracketGrid(true) +
       `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
         <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
@@ -842,12 +842,12 @@
         </div>
       </div>
       <div class="sticky-submit"><span class="sub" data-final-status>${ready ? 'listo para enviar' : (isDraw ? 'elige campeón' : 'pon el marcador')}</span>
-        <button class="btn primary" data-action="final-submit" ${ready ? '' : 'disabled'}>Enviar apuesta de la final (definitivo)</button></div>`;
+        <button class="btn primary" data-action="final-submit" ${ready ? '' : 'disabled'}>Enviar prediccion de la final (definitivo)</button></div>`;
   }
   function renderFinalLegacy() {
     const f = STATE.final;
-    const head = `<div class="section-head"><h2>🏆 La Final</h2><p>Apuesta el <b>marcador exacto</b>. El campeón se deduce del marcador; si pronosticas empate, eliges quién levanta la copa. Se envía una sola vez.</p></div>`;
-    const submittedHead = `<div class="section-head"><h2>🏆 La Final</h2><p>Tu apuesta de la final ya fue enviada. Revisa tu marcador, campeón elegido y puntos conseguidos.</p></div>`;
+    const head = `<div class="section-head"><h2>🏆 La Final</h2><p>Predice el <b>marcador exacto</b>. El campeón se deduce del marcador; si pronosticas empate, eliges quién levanta la copa. Se envía una sola vez.</p></div>`;
+    const submittedHead = `<div class="section-head"><h2>🏆 La Final</h2><p>Tu prediccion de la final ya fue enviada. Revisa tu marcador, campeón elegido y puntos conseguidos.</p></div>`;
     if (!f.teams) return head + `<div class="empty">Se abrirá cuando se conozcan los dos finalistas (tras las semifinales).</div>`;
     const A = f.teams.home, B = f.teams.away;
     const champName = (code) => code === A.code ? A.name : (code === B.code ? B.name : '—');
@@ -860,9 +860,9 @@
         const champHit = f.your.champion && f.actual.winner && f.your.champion === f.actual.winner;
         res = `<div class="notice ${exact || champHit ? 'ok' : 'warn'}">Final real: ${as.home}-${as.away}, campeón ${esc(champName(f.actual.winner))}. ${exact ? '✓ marcador exacto' : '✗ marcador exacto'}${champHit ? ' · ✓ campeón' : ''}</div>`;
       }
-      return submittedHead + `<div class="notice ok">Tu apuesta: <b>${esc(A.name)} ${f.your.score.home}-${f.your.score.away} ${esc(B.name)}</b> · campeón: <b>${esc(champName(f.your.champion))}</b> (enviada ${fmt(f.submittedAt)}).</div>` + res + finalCard(A, B, f);
+      return submittedHead + `<div class="notice ok">Tu prediccion: <b>${esc(A.name)} ${f.your.score.home}-${f.your.score.away} ${esc(B.name)}</b> · campeón: <b>${esc(champName(f.your.champion))}</b> (enviada ${fmt(f.submittedAt)}).</div>` + res + finalCard(A, B, f);
     }
-    if (!f.open) return head + `<div class="notice info">La apuesta de la final está cerrada.</div>` + finalCard(A, B, f);
+    if (!f.open) return head + `<div class="notice info">La prediccion de la final está cerrada.</div>` + finalCard(A, B, f);
     return head + rules + `<div class="notice warn">⚠️ Una sola vez. Pon el marcador; solo tendrás que elegir campeón si marcas empate.</div>` + finalForm(A, B);
   }
 
@@ -893,12 +893,12 @@
         </div>
       </div>
       <div class="sticky-submit"><span class="sub" data-final-status>${contradicts ? `debe ganar ${esc(projected.name)}` : (ready ? 'listo para enviar' : (isDraw ? 'elige campeon' : 'pon el marcador'))}</span>
-        <button class="btn primary" data-action="final-submit" ${ready ? '' : 'disabled'}>Enviar apuesta de la final (definitivo)</button></div>`;
+        <button class="btn primary" data-action="final-submit" ${ready ? '' : 'disabled'}>Enviar prediccion de la final (definitivo)</button></div>`;
   }
   function renderFinal() {
     const f = STATE.final;
-    const head = `<div class="section-head"><h2>La Final</h2><p>Apuesta el <b>marcador exacto</b>. Si marcas empate tras prorroga, debes elegir el ganador en penales.</p></div>`;
-    const submittedHead = `<div class="section-head"><h2>La Final</h2><p>Tu apuesta de la final ya fue enviada.</p></div>`;
+    const head = `<div class="section-head"><h2>La Final</h2><p>Predice el <b>marcador exacto</b>. Si marcas empate tras prorroga, debes elegir el ganador en penales.</p></div>`;
+    const submittedHead = `<div class="section-head"><h2>La Final</h2><p>Tu prediccion de la final ya fue enviada.</p></div>`;
     if (!f.teams) return head + `<div class="empty">Se abrira cuando se conozcan los dos finalistas.</div>`;
     const A = f.teams.home, B = f.teams.away;
     const champName = (code) => code === A.code ? A.name : (code === B.code ? B.name : '—');
@@ -913,9 +913,9 @@
         const champHit = f.your.champion && f.actual.winner && f.your.champion === f.actual.winner;
         res = `<div class="notice ${exact || champHit ? 'ok' : 'warn'}">Final real: ${as.home}-${as.away}, campeon ${esc(champName(f.actual.winner))}. ${exact ? 'marcador exacto acertado' : 'marcador exacto fallado'}${champHit ? ' · campeon acertado' : ''}</div>`;
       }
-      return submittedHead + `<div class="notice ok">Tu apuesta: <b>${esc(A.name)} ${f.your.score.home}-${f.your.score.away} ${esc(B.name)}</b> · campeon: <b>${esc(champName(f.your.champion))}</b> (enviada ${fmt(f.submittedAt)}).</div>` + res + finalCard(A, B, f);
+      return submittedHead + `<div class="notice ok">Tu prediccion: <b>${esc(A.name)} ${f.your.score.home}-${f.your.score.away} ${esc(B.name)}</b> · campeon: <b>${esc(champName(f.your.champion))}</b> (enviada ${fmt(f.submittedAt)}).</div>` + res + finalCard(A, B, f);
     }
-    if (!f.open) return head + `<div class="notice info">La apuesta de la final esta cerrada.</div>` + finalCard(A, B, f);
+    if (!f.open) return head + `<div class="notice info">La prediccion de la final esta cerrada.</div>` + finalCard(A, B, f);
     return head + rules + projectedNotice + `<div class="notice warn">Una sola vez. Pon el marcador; solo tendras que elegir campeon si marcas empate.</div>` + finalForm(A, B);
   }
 
@@ -935,8 +935,8 @@
     const source = m.candidatesSource === 'api-scorers'
       ? 'Candidatos congelados desde football-data.org al abrirse la llave.'
       : (m.candidatesSource === 'test' ? 'Candidatos ficticios del modo pruebas.' : 'Candidatos manuales de respaldo.');
-    const head = `<div class="section-head"><h2>⭐ Bota de Oro</h2><p>Apuesta por el goleador del torneo entre los 20 mejores goleadores de la fase de grupos. Se envía <b>una sola vez</b>.</p></div>`;
-    const submittedHead = `<div class="section-head"><h2>⭐ Bota de Oro</h2><p>Tu apuesta de Bota de Oro ya fue enviada. Revisa el jugador elegido y si suma puntos.</p></div>`;
+    const head = `<div class="section-head"><h2>⭐ Bota de Oro</h2><p>Elige el goleador del torneo entre los 20 mejores goleadores de la fase de grupos. Se envía <b>una sola vez</b>.</p></div>`;
+    const submittedHead = `<div class="section-head"><h2>⭐ Bota de Oro</h2><p>Tu prediccion de Bota de Oro ya fue enviada. Revisa el jugador elegido y si suma puntos.</p></div>`;
     const rules = `<div class="notice info">Reglas: <b>${m.points} pts</b> si aciertas el goleador del torneo. ${source} Ejemplo: eliges a un goleador de la lista y termina ganando la Bota de Oro, sumas ${m.points} pts; si gana otro jugador, sumas 0.</div>`;
     if (m.submitted) {
       const pick = m.candidates.find(p => p.id === m.yourPick);
@@ -944,14 +944,14 @@
       if (m.actual) res = (m.actual === m.yourPick)
         ? `<div class="notice ok">✓ ¡Acertaste la Bota de Oro! +${m.points} pts</div>`
         : `<div class="notice warn">Esta vez no acertaste la Bota de Oro.</div>`;
-      return submittedHead + rules + `<div class="notice ok">Tu apuesta: <b>${esc(pick ? pick.name : '—')}</b> (enviada ${fmt(m.submittedAt)}). No se puede cambiar.</div>` + res + mvpGrid(m, null);
+      return submittedHead + rules + `<div class="notice ok">Tu prediccion: <b>${esc(pick ? pick.name : '—')}</b> (enviada ${fmt(m.submittedAt)}). No se puede cambiar.</div>` + res + mvpGrid(m, null);
     }
     if (!m.open) {
-      const why = (m.window && m.window.passedDeadline) ? 'La apuesta de Bota de Oro ya está cerrada.' : 'Se abrirá en la fase eliminatoria (cuando terminen los grupos).';
+      const why = (m.window && m.window.passedDeadline) ? 'La prediccion de Bota de Oro ya está cerrada.' : 'Se abrirá en la fase eliminatoria (cuando terminen los grupos).';
       return head + rules + `<div class="notice info">${why} Estos son los candidatos previstos:</div>` + mvpGrid(m, null);
     }
     return head + rules
-      + `<div class="notice warn">Se aceptan apuestas de Bota de Oro ${bettingDeadlineText(m.window?.deadline)}. Una sola vez: elige un jugador y envia.</div>`
+      + `<div class="notice warn">Se acepta envio de Bota de Oro ${bettingDeadlineText(m.window?.deadline)}. Una sola vez: elige un jugador y envia.</div>`
       + mvpGrid(m, ui.mvpPick)
       + `<div class="sticky-submit"><span class="sub">${ui.mvpPick ? '1 jugador elegido' : 'elige un jugador'}</span>
          <button class="btn primary" data-action="mvp-submit" ${ui.mvpPick ? '' : 'disabled'}>Enviar Bota de Oro (definitivo)</button></div>`;
@@ -1082,12 +1082,12 @@
       } else if (a === 'mvp-pick') {
         ui.mvpPick = t.dataset.player; render();
       } else if (a === 'mvp-submit') {
-        try { await api('/mvp', { method: 'POST', body: JSON.stringify({ playerId: ui.mvpPick }) }); ui.mvpPick = null; setNotice('✓ Apuesta de Bota de Oro enviada.', 'ok'); await loadState(); }
+        try { await api('/mvp', { method: 'POST', body: JSON.stringify({ playerId: ui.mvpPick }) }); ui.mvpPick = null; setNotice('✓ Prediccion de Bota de Oro enviada.', 'ok'); await loadState(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'final-champ') {
         ui.finalChamp = t.dataset.code; render();
       } else if (a === 'final-submit') {
-        try { await api('/final', { method: 'POST', body: JSON.stringify({ score: ui.finalScore, champion: ui.finalChamp }) }); ui.finalChamp = null; ui.finalScore = {}; setNotice('✓ Apuesta de la final enviada.', 'ok'); await loadState(); }
+        try { await api('/final', { method: 'POST', body: JSON.stringify({ score: ui.finalScore, champion: ui.finalChamp }) }); ui.finalChamp = null; ui.finalScore = {}; setNotice('✓ Prediccion de la final enviada.', 'ok'); await loadState(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'admin-refresh') {
         try { const r = await api('/admin/refresh', { method: 'POST' }); setNotice(`✓ ${r.count} partidos (${r.finished} finalizados)${r.mvpCandidates ? ` · Bota de Oro ${r.mvpCandidates} candidatos` : ''}.`, 'ok'); await loadState(); ui.tab = 'admin'; render(); refreshAdmin(); }

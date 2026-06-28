@@ -68,7 +68,7 @@ const bracketDemo = {
   'r32-16': { a: B('Argentina', 'ARG'),      b: B('Cape Verde Islands', 'CPV') },
 };
 
-// Finalistas de ejemplo (solo para poder probar la apuesta de la Final en la demo).
+// Finalistas de ejemplo (solo para poder probar la prediccion de la Final en la demo).
 const finalDemo = { home: B('Argentina', 'ARG'), away: B('Francia', 'FRA') };
 
 export const SAMPLE = {

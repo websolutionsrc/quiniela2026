@@ -13,7 +13,7 @@ export const TEST_PHASES = [
   { id: 'r16_open', name: 'Octavos abiertos', description: '1/16 resueltos y octavos disponibles para validar ramas y recuperaciones.' },
   { id: 'qf_open', name: 'Cuartos abiertos', description: 'Octavos resueltos y cuartos disponibles para probar rachas v2.' },
   { id: 'sf_open', name: 'Semifinales abiertas', description: 'Cuartos resueltos y semifinales disponibles para validar top4 y ramas vivas.' },
-  { id: 'final_open', name: 'Final abierta', description: 'Finalistas conocidos y apuesta de final disponible.' },
+  { id: 'final_open', name: 'Final abierta', description: 'Finalistas conocidos y prediccion de final disponible.' },
   { id: 'tournament_finished', name: 'Torneo terminado', description: 'Final terminada para validar puntuaciones finales.' },
 ];
 
