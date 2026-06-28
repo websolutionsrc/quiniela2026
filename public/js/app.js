@@ -278,6 +278,15 @@
   }
 
   function renderGoldenBootDetail(d) {
+    if (d?.locked) {
+      const status = d.submitted
+        ? `<span class="pts hit">Enviada${d.submittedAt ? ` ${fmt(d.submittedAt)}` : ''}</span>`
+        : '<span class="pts">No enviada</span>';
+      return `<div class="detail-card"><h3>Bota de Oro</h3>
+        <div class="detail-line"><span>Estado</span>${status}</div>
+        <p class="sub">La prediccion de Bota de Oro se mostrara despues del inicio del primer partido: ${fmt(d.unlockAt)}.</p>
+      </div>`;
+    }
     if (!d || !d.submitted) return `<div class="detail-card"><h3>Bota de Oro</h3><p class="sub">Sin prediccion enviada.</p></div>`;
     const status = d.hasResult
       ? (d.hit ? `<span class="pts hit">Acertada +${d.points || 0}</span>` : `<span class="pts">Fallada +0</span>`)
@@ -707,6 +716,15 @@
     </div>`;
   }
   function renderBracketDetail(d) {
+    if (d?.locked) {
+      const status = d.submitted
+        ? `<span class="pts hit">Enviada${d.submittedAt ? ` ${fmt(d.submittedAt)}` : ''}</span>`
+        : '<span class="pts">No enviada</span>';
+      return `<div class="detail-card detail-wide"><h3>Llave</h3>
+        <div class="detail-line"><span>Estado</span>${status}</div>
+        <p class="sub">La prediccion de llaves se mostrara despues del inicio del primer partido: ${fmt(d.unlockAt)}.</p>
+      </div>`;
+    }
     if (!d || !d.submitted) return `<div class="detail-card"><h3>Llave</h3><p class="sub">Sin llave enviada.</p></div>`;
     const rows = (d.nodes || []).filter(n => n.resolved || n.recoveryOpen).slice(0, 8);
     const body = rows.length

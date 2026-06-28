@@ -242,6 +242,24 @@ function buildUserFinalDetail(username, totals) {
     actual: af ? { score: af.score, winner: teamNameForFinal(af.winner, af, teams), home: wf(af.home), away: wf(af.away) } : null,
   };
 }
+function lockedBracketDetail(username, unlockAt) {
+  const pred = db.predictions[username]?.bracket || {};
+  return {
+    locked: true,
+    unlockAt,
+    submitted: !!pred.submitted,
+    submittedAt: pred.at || null,
+  };
+}
+function lockedGoldenBootDetail(username, unlockAt) {
+  const pred = db.predictions[username]?.mvp || {};
+  return {
+    locked: true,
+    unlockAt,
+    submitted: !!pred.submitted,
+    submittedAt: pred.at || null,
+  };
+}
 function buildUserGroupPredictions(username) {
   const target = db.users[username];
   if (!target) return null;
@@ -252,6 +270,8 @@ function buildUserGroupPredictions(username) {
   const finalSummary = Score.userFinalTotals(username);
   const mvpSummary = Score.userMvpTotals(username);
   const rankRow = Score.ranking().find(r => r.username === username);
+  const win = Data.bracketWindow();
+  const showLockedPredictions = !!win.passedDeadline;
   const matches = Data.groupMatches()
     .filter(Data.isFinished)
     .slice()
@@ -269,8 +289,8 @@ function buildUserGroupPredictions(username) {
       final: finalSummary,
       mvp: mvpSummary,
     },
-    bracketDetail: buildUserBracketDetail(username, bracketSummary),
-    goldenBootDetail: buildUserGoldenBootDetail(username, mvpSummary),
+    bracketDetail: showLockedPredictions ? buildUserBracketDetail(username, bracketSummary) : lockedBracketDetail(username, win.deadline),
+    goldenBootDetail: showLockedPredictions ? buildUserGoldenBootDetail(username, mvpSummary) : lockedGoldenBootDetail(username, win.deadline),
     finalDetail: buildUserFinalDetail(username, finalSummary),
     matches,
   };
