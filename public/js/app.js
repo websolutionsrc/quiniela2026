@@ -955,6 +955,22 @@
       return `<div class="mvp-card ${sel ? 'sel' : ''}"${click}>${flag}<div><div class="mvp-name">${esc(p.name)}${star}</div><div class="sub">${esc(p.team)}${goals}</div></div></div>`;
     }).join('')}</div>`;
   }
+  function mvpSubmittedSummary(m) {
+    const pick = m.candidates.find(p => p.id === m.yourPick);
+    const top = m.candidates.slice(0, 5);
+    const row = (p, i, extra = '') => {
+      const goals = p?.goals != null ? `${p.goals} goles` : 'goles no disponibles';
+      return `<div class="mvp-row ${p?.id === m.yourPick ? 'sel' : ''}"><span>${i ? `${i}.` : 'Tu eleccion'}</span>${flagImg(p?.flag, 'flag flag-sm')}<b>${esc(p?.name || '—')}</b><em>${esc(goals)}</em>${extra}</div>`;
+    };
+    const actual = m.actual
+      ? (m.actual === m.yourPick ? `<span class="pts hit">+${m.points} pts</span>` : '<span class="pts">+0 pts</span>')
+      : '<span class="pts">Pendiente</span>';
+    return `<div class="mvp-compact">
+      ${row(pick, 0, actual)}
+      <h3>Top 5 goleadores al cierre de grupos</h3>
+      ${top.map((p, i) => row(p, i + 1)).join('')}
+    </div>`;
+  }
   function renderMvp() {
     const m = STATE.mvp;
     const source = m.candidatesSource === 'api-scorers'
@@ -963,6 +979,7 @@
     const head = `<div class="section-head"><h2>⭐ Bota de Oro</h2><p>Elige el goleador del torneo entre los 20 mejores goleadores de la fase de grupos. Se envía <b>una sola vez</b>.</p></div>`;
     const submittedHead = `<div class="section-head"><h2>⭐ Bota de Oro</h2><p>Tu prediccion de Bota de Oro ya fue enviada. Revisa el jugador elegido y si suma puntos.</p></div>`;
     const rules = `<div class="notice info">Reglas: <b>${m.points} pts</b> si aciertas el goleador del torneo. ${source} Ejemplo: eliges a un goleador de la lista y termina ganando la Bota de Oro, sumas ${m.points} pts; si gana otro jugador, sumas 0.</div>`;
+    if (m.submitted) return submittedHead + `<div class="notice ok">Enviada ${fmt(m.submittedAt)}. No se puede cambiar.</div>` + mvpSubmittedSummary(m);
     if (m.submitted) {
       const pick = m.candidates.find(p => p.id === m.yourPick);
       let res = '';

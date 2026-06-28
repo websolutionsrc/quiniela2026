@@ -266,6 +266,14 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .mvp-card[data-action]:hover { border-color: var(--primary); }
 .mvp-card.sel { border-color: var(--primary); background: rgba(0,184,148,.16); box-shadow: 0 0 0 1px var(--primary) inset; }
 .mvp-name { font-weight: 700; }
+.mvp-compact { display: grid; gap: .55rem; max-width: 680px; }
+.mvp-compact h3 { margin: .6rem 0 .1rem; color: var(--accent); font-size: .95rem; }
+.mvp-row { display: grid; grid-template-columns: 92px auto minmax(0, 1fr) auto auto; align-items: center; gap: .45rem;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: .55rem .7rem; }
+.mvp-row.sel { border-color: var(--primary); background: rgba(0,184,148,.13); }
+.mvp-row span { color: var(--muted); font-size: .8rem; }
+.mvp-row b { min-width: 0; overflow-wrap: anywhere; }
+.mvp-row em { color: var(--muted); font-style: normal; font-size: .82rem; }
 
 /* Final */
 .final-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .6rem; }
@@ -298,6 +306,8 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
   .champ-box .champ { max-width: 100%; }
   .sticky-submit .btn { width: 100%; }
   .pred-points { justify-content: flex-start; flex: 1 1 100%; }
+  .mvp-row { grid-template-columns: 72px auto minmax(0, 1fr); }
+  .mvp-row em, .mvp-row .pts { grid-column: 3; }
   .feed-layout { grid-template-columns: 1fr; }
   .chat-form { grid-template-columns: 1fr; }
   .chat-form .btn { width: 100%; }
