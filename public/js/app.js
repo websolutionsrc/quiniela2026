@@ -634,7 +634,13 @@
   }
   function statusTeamsForNode(n, cand, detail) {
     if (detail?.match?.home && detail?.match?.away) return { a: detail.match.home, b: detail.match.away };
-    return cand[n.id] || { a: null, b: null };
+    const predicted = detail?.activePickTeam || detail?.recoveryPickTeam || detail?.originalPickTeam || null;
+    const base = cand[n.id] || { a: null, b: null };
+    if (!predicted) return base;
+    if (base.a?.code === predicted.code || base.b?.code === predicted.code) return base;
+    if (!base.a) return { a: predicted, b: base.b || null };
+    if (!base.b) return { a: base.a, b: predicted };
+    return base;
   }
   function statusSlotHtml(team, detail) {
     const code = team && team.code;
@@ -757,7 +763,9 @@
       const actionNotice = actionCount
         ? `<div class="notice warn">Requiere accion: tienes ${actionCount} cruce${actionCount === 1 ? '' : 's'} en amarillo para recuperar rama.</div>`
         : `<div class="notice ok">Sin acciones pendientes ahora mismo.</div>`;
-      return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + actionNotice + renderBracketStatusGrid(b.detail) + renderSelectedBranchDetail(b.detail);
+      const fullTree = `<h3 class="group-title">Tu llave completa</h3>${renderBracketGrid(false)}`;
+      const tracking = `<h3 class="group-title">Seguimiento</h3>${renderBracketStatusGrid(b.detail, true)}`;
+      return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + actionNotice + fullTree + tracking + renderSelectedBranchDetail(b.detail);
     }
     if (!b.window.open) {
       const why = b.window.passedDeadline ? 'La llave ya esta cerrada.' : 'La llave se abrira cuando terminen los grupos y se conozcan los 32 equipos.';
@@ -967,7 +975,7 @@
       : '<span class="pts">Pendiente</span>';
     return `<div class="mvp-compact">
       ${row(pick, 0, actual)}
-      <h3>Top 5 goleadores al cierre de grupos</h3>
+      <h3>Top 5 goleadores del Mundial</h3>
       ${top.map((p, i) => row(p, i + 1)).join('')}
     </div>`;
   }
