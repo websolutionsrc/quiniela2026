@@ -50,22 +50,22 @@ const matches = [
 // Equipos de ejemplo para la llave (solo para demostrar el cuadro interactivo).
 const B = (name, code) => ({ name, code });
 const bracketDemo = {
-  'r32-1':  { a: B('México', 'MEX'),         b: B('Croacia', 'CRO') },
-  'r32-2':  { a: B('Países Bajos', 'NED'),   b: B('Senegal', 'SEN') },
-  'r32-3':  { a: B('Argentina', 'ARG'),      b: B('Brasil', 'BRA') },
-  'r32-4':  { a: B('España', 'ESP'),         b: B('Uruguay', 'URU') },
-  'r32-5':  { a: B('Portugal', 'POR'),       b: B('Suiza', 'SUI') },
-  'r32-6':  { a: B('Inglaterra', 'ENG'),     b: B('Japón', 'JPN') },
-  'r32-7':  { a: B('Estados Unidos', 'USA'), b: B('Corea del Sur', 'KOR') },
-  'r32-8':  { a: B('Bélgica', 'BEL'),        b: B('Marruecos', 'MAR') },
-  'r32-9':  { a: B('Francia', 'FRA'),        b: B('Canadá', 'CAN') },
-  'r32-10': { a: B('Alemania', 'GER'),       b: B('Ecuador', 'ECU') },
-  'r32-11': { a: B('Colombia', 'COL'),       b: B('Nigeria', 'NGA') },
-  'r32-12': { a: B('Italia', 'ITA'),         b: B('Ghana', 'GHA') },
-  'r32-13': { a: B('Dinamarca', 'DEN'),      b: B('Serbia', 'SRB') },
-  'r32-14': { a: B('Polonia', 'POL'),        b: B('Australia', 'AUS') },
-  'r32-15': { a: B('Noruega', 'NOR'),        b: B('Egipto', 'EGY') },
-  'r32-16': { a: B('Costa de Marfil', 'CIV'),b: B('Arabia Saudí', 'KSA') },
+  'r32-1':  { a: B('South Africa', 'RSA'),   b: B('Canada', 'CAN') },
+  'r32-2':  { a: B('Netherlands', 'NED'),    b: B('Morocco', 'MAR') },
+  'r32-3':  { a: B('Germany', 'GER'),        b: B('Paraguay', 'PAR') },
+  'r32-4':  { a: B('France', 'FRA'),         b: B('Sweden', 'SWE') },
+  'r32-5':  { a: B('Belgium', 'BEL'),        b: B('Senegal', 'SEN') },
+  'r32-6':  { a: B('United States', 'USA'),  b: B('Bosnia-Herzegovina', 'BIH') },
+  'r32-7':  { a: B('Spain', 'ESP'),          b: B('Austria', 'AUT') },
+  'r32-8':  { a: B('Portugal', 'POR'),       b: B('Croatia', 'CRO') },
+  'r32-9':  { a: B('Brazil', 'BRA'),         b: B('Japan', 'JPN') },
+  'r32-10': { a: B('Ivory Coast', 'CIV'),    b: B('Norway', 'NOR') },
+  'r32-11': { a: B('Mexico', 'MEX'),         b: B('Ecuador', 'ECU') },
+  'r32-12': { a: B('England', 'ENG'),        b: B('Congo DR', 'COD') },
+  'r32-13': { a: B('Switzerland', 'SUI'),    b: B('Algeria', 'ALG') },
+  'r32-14': { a: B('Colombia', 'COL'),       b: B('Ghana', 'GHA') },
+  'r32-15': { a: B('Australia', 'AUS'),      b: B('Egypt', 'EGY') },
+  'r32-16': { a: B('Argentina', 'ARG'),      b: B('Cape Verde Islands', 'CPV') },
 };
 
 // Finalistas de ejemplo (solo para poder probar la apuesta de la Final en la demo).

@@ -68,13 +68,13 @@ function finishedGroups() {
   });
 }
 
-const r32Winners = ['MEX', 'NED', 'ARG', 'ESP', 'POR', 'ENG', 'USA', 'BEL', 'FRA', 'GER', 'COL', 'ITA', 'DEN', 'POL', 'NOR', 'CIV'];
+const r32Winners = ['RSA', 'NED', 'GER', 'FRA', 'BEL', 'USA', 'ESP', 'POR', 'BRA', 'CIV', 'MEX', 'ENG', 'SUI', 'COL', 'AUS', 'ARG'];
 const r16Ties = [
-  ['MEX', 'NED', 'MEX'], ['ARG', 'ESP', 'ARG'], ['POR', 'ENG', 'POR'], ['USA', 'BEL', 'USA'],
-  ['FRA', 'GER', 'FRA'], ['COL', 'ITA', 'COL'], ['DEN', 'POL', 'DEN'], ['NOR', 'CIV', 'NOR'],
+  ['RSA', 'NED', 'NED'], ['GER', 'FRA', 'FRA'], ['BEL', 'USA', 'USA'], ['ESP', 'POR', 'ESP'],
+  ['BRA', 'CIV', 'BRA'], ['MEX', 'ENG', 'ENG'], ['SUI', 'COL', 'COL'], ['AUS', 'ARG', 'ARG'],
 ];
-const qfTies = [['MEX', 'ARG', 'ARG'], ['POR', 'USA', 'POR'], ['FRA', 'COL', 'FRA'], ['DEN', 'NOR', 'DEN']];
-const sfTies = [['ARG', 'POR', 'ARG'], ['FRA', 'DEN', 'FRA']];
+const qfTies = [['NED', 'FRA', 'FRA'], ['USA', 'ESP', 'ESP'], ['BRA', 'ENG', 'BRA'], ['COL', 'ARG', 'ARG']];
+const sfTies = [['FRA', 'ESP', 'FRA'], ['BRA', 'ARG', 'ARG']];
 
 function ko(id, phase, home, away, score, winner, utcDate, status = 'FINISHED') {
   return { id, phase, group: null, matchday: null, utcDate, status, home, away, score, winner };
