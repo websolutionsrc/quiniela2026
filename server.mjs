@@ -294,6 +294,20 @@ function prizeInfo() {
   };
 }
 
+function bettingDeadlineText(win) {
+  if (!win?.deadline) return 'hasta el inicio del primer partido de 1/16';
+  const deadline = new Date(win.deadline);
+  const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(Data.now());
+  const deadlineKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(deadline);
+  const time = deadline.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+  if (todayKey === deadlineKey) {
+    const weekday = deadline.toLocaleDateString('es-ES', { weekday: 'long', timeZone: 'Europe/Madrid' });
+    return `hasta hoy ${weekday} a las ${time}`;
+  }
+  const day = deadline.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Madrid' });
+  return `hasta el ${day} a las ${time}`;
+}
+
 function publicChat(limit = 120) {
   const rows = Array.isArray(db.chat) ? db.chat : [];
   return rows.slice(-limit).map(m => ({
@@ -344,7 +358,7 @@ function buildState(user) {
   const bracketVisible = !!bracketPred.submitted || win.groupsFinished || Data.bracketPreviewAvailable();
   const bracketDetail = buildUserBracketDetail(user.username, Score.userBracketTotals(user.username));
   const mvpVisible = win.groupsFinished || !!mvpPred.submitted || !!Data.actualMvp();
-  const mvpOpen = win.groupsFinished && mvpCandidates.length > 0 && !mvpPred.submitted && !Data.actualMvp();
+  const mvpOpen = win.groupsFinished && !win.passedDeadline && mvpCandidates.length > 0 && !mvpPred.submitted && !Data.actualMvp();
   const fw = Data.finalWindow();
   const finalVisible = fw.teamsKnown || !!finalPred.submitted || !!Data.actualFinal();
   const finalState = {
@@ -359,11 +373,12 @@ function buildState(user) {
     rules: CONFIG.scoring.final,
   };
   const actions = [];
-  if (bracketOpen) actions.push({ tab: 'llave', level: 'warn', label: 'Llave pendiente', text: 'Ya puedes enviar tu llave inicial.' });
+  const deadlineText = bettingDeadlineText(win);
+  if (bracketOpen) actions.push({ tab: 'llave', level: 'warn', label: 'Llave pendiente', text: `Se aceptan apuestas de llaves ${deadlineText}.` });
   if (bracketDetail.actionRequired) actions.push({ tab: 'llave', level: 'warn', label: 'Llave requiere accion', text: `${bracketDetail.actionRequired} cruce${bracketDetail.actionRequired === 1 ? '' : 's'} para recuperar.` });
   const revisions = bracketDetail.nodes.filter(n => n.revisionOpen).length;
   if (revisions) actions.push({ tab: 'llave', level: 'info', label: 'Cambios disponibles', text: `${revisions} cruce${revisions === 1 ? '' : 's'} se puede${revisions === 1 ? '' : 'n'} cambiar antes del partido.` });
-  if (mvpOpen) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: 'Falta elegir goleador del torneo.' });
+  if (mvpOpen) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: `Se aceptan apuestas de Bota de Oro ${deadlineText}.` });
   if (finalState.open) actions.push({ tab: 'final', level: 'warn', label: 'Final pendiente', text: 'Falta enviar la apuesta de la final.' });
 
   return {
@@ -564,7 +579,7 @@ async function handleApi(req, res, pathname) {
     const b = await readBody(req);
     const win = Data.bracketWindow();
     const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
-    if (!(win.groupsFinished && Data.mvpCandidates().length > 0 && !Data.actualMvp())) {
+    if (!(win.groupsFinished && !win.passedDeadline && Data.mvpCandidates().length > 0 && !Data.actualMvp())) {
       return sendJSON(res, 403, { error: 'La apuesta de Bota de Oro aún no está abierta.' });
     }
     if (pred.mvp && pred.mvp.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu apuesta de Bota de Oro.' });

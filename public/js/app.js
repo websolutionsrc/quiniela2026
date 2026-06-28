@@ -16,6 +16,19 @@
     { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
   const rankBadge = (rank) => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : (rank ? `#${rank}` : '');
   const euro = (n) => `${Number(n || 0).toLocaleString('es-ES')} €`;
+  const bettingDeadlineText = (iso) => {
+    if (!iso) return 'hasta el inicio del primer partido de 1/16';
+    const d = new Date(iso);
+    const now = STATE?.now ? new Date(STATE.now) : new Date();
+    const dateKey = (x) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(x);
+    const time = d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+    if (dateKey(now) === dateKey(d)) {
+      const weekday = d.toLocaleDateString('es-ES', { weekday: 'long', timeZone: 'Europe/Madrid' });
+      return `hasta hoy ${weekday} a las ${time}`;
+    }
+    const day = d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Madrid' });
+    return `hasta el ${day} a las ${time}`;
+  };
 
   let STATE = null, ME = null;
   const ui = { tab: 'ranking', notice: null, bracketPicks: null, groupDraft: {}, adminUsers: null, testPhases: null, mvpPick: null, finalChamp: null, finalScore: {}, playerProfile: null, playerTreeOpen: false, branchDetailNode: null };
@@ -504,8 +517,9 @@
     const total = b.tree.r32.length + b.tree.r16.length + b.tree.qf.length + b.tree.sf.length + 1;
     const done = Object.keys(ui.bracketPicks).filter(k => ui.bracketPicks[k]).length;
     const complete = done >= total;
+    const deadline = bettingDeadlineText(b.window?.deadline);
     return head + rulesBracket() +
-      `<div class="notice warn">⚠️ Una vez envíes, <b>no podrás cambiarlo</b>. Haz clic en el equipo que avanza en cada cruce.</div>` +
+      `<div class="notice warn">Se aceptan apuestas de llaves ${deadline}. Una vez envies, <b>no podras cambiarlo</b>.</div>` +
       renderBracketGrid(true) +
       `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
         <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
@@ -530,8 +544,9 @@
     const total = b.tree.r32.length + b.tree.r16.length + b.tree.qf.length + b.tree.sf.length + 1;
     const done = Object.keys(ui.bracketPicks).filter(k => ui.bracketPicks[k]).length;
     const complete = done >= total;
+    const deadline = bettingDeadlineText(b.window?.deadline);
     return head + rulesBracket() +
-      `<div class="notice warn">Una vez envies, <b>no podras cambiarlo</b>. Haz clic en el equipo que avanza en cada cruce.</div>` +
+      `<div class="notice warn">Se aceptan apuestas de llaves ${deadline}. Una vez envies, <b>no podras cambiarlo</b>.</div>` +
       renderBracketGrid(true) +
       `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
         <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
@@ -727,8 +742,9 @@
     const total = b.tree.r32.length + b.tree.r16.length + b.tree.qf.length + b.tree.sf.length + 1;
     const done = Object.keys(ui.bracketPicks).filter(k => ui.bracketPicks[k]).length;
     const complete = done >= total;
+    const deadline = bettingDeadlineText(b.window?.deadline);
     return head + rulesBracket() +
-      `<div class="notice warn">Una vez envies, <b>no podras cambiarlo</b>. Haz clic en el equipo que avanza en cada cruce.</div>` +
+      `<div class="notice warn">Se aceptan apuestas de llaves ${deadline}. Una vez envies, <b>no podras cambiarlo</b>.</div>` +
       renderBracketGrid(true) +
       `<div class="sticky-submit"><span class="sub">${done}/${total} cruces elegidos</span>
         <button class="btn primary" data-action="bracket-submit" ${complete ? '' : 'disabled'}>Enviar llave (definitivo)</button></div>`;
@@ -935,7 +951,7 @@
       return head + rules + `<div class="notice info">${why} Estos son los candidatos previstos:</div>` + mvpGrid(m, null);
     }
     return head + rules
-      + `<div class="notice warn">⚠️ Una sola vez. Elige un jugador y envía.</div>`
+      + `<div class="notice warn">Se aceptan apuestas de Bota de Oro ${bettingDeadlineText(m.window?.deadline)}. Una sola vez: elige un jugador y envia.</div>`
       + mvpGrid(m, ui.mvpPick)
       + `<div class="sticky-submit"><span class="sub">${ui.mvpPick ? '1 jugador elegido' : 'elige un jugador'}</span>
          <button class="btn primary" data-action="mvp-submit" ${ui.mvpPick ? '' : 'disabled'}>Enviar Bota de Oro (definitivo)</button></div>`;
