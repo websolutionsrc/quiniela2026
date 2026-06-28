@@ -41,7 +41,7 @@ export const CONFIG = {
     },
     // Llave: predices quién avanza en cada cruce.
     bracket: {
-      perWinner: 2,     // valor inicial de cada rama viva; sube +1 por acierto
+      perWinner: 2,     // valor inicial y paso de cada racha: +2, +4, +6...
       top4Bonus: 5,     // extra por cada semifinalista (top 4) acertado
       finalistBonus: 6, // extra por cada finalista acertado
     },

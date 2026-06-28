@@ -478,7 +478,7 @@
     return `<div class="notice info">Reglas de la llave: <b>${STATE.rules.bracket.perWinner} pts</b> por cada cruce acertado, <b>+${STATE.rules.bracket.top4Bonus} pts</b> por cada semifinalista acertado y <b>+${STATE.rules.bracket.finalistBonus || 0} pts</b> por cada finalista acertado. Ejemplo: eliges a España en un cruce y avanza, +${STATE.rules.bracket.perWinner}; si la metiste en semifinales reales, +${STATE.rules.bracket.top4Bonus} extra; si además llega a la final, +${STATE.rules.bracket.finalistBonus || 0} extra.</div>`;
   }
   function rulesBracketOld() {
-    return `<div class="notice info">Reglas de la llave: cada rama viva empieza en <b>+${bracketBaseV2()}</b>. Si el equipo pasa, suma ese valor y la siguiente ronda vale <b>+1</b> mas. Si la rama se rompe, solo puedes recuperar el cruce real abierto; una rama recuperada vuelve a empezar en <b>+${bracketBaseV2()}</b>.</div>`;
+    return `<div class="notice info">Reglas de la llave: cada rama viva empieza en <b>+${bracketBaseV2()}</b>. Si el equipo pasa, suma ese valor y la siguiente ronda sube otros <b>+${bracketBaseV2()}</b>. Si la rama se rompe, solo puedes recuperar el cruce real abierto; una rama recuperada vuelve a empezar en <b>+${bracketBaseV2()}</b>.</div>`;
   }
   function renderRecoveryPanel(detail) {
     const open = (detail?.nodes || []).filter(n => n.recoveryOpen);
@@ -706,7 +706,7 @@
   }
   function rulesBracket() {
     const base = bracketBaseV2();
-    return `<div class="notice info">Reglas de la llave: cada rama viva empieza en <b>+${base}</b>. Si el equipo pasa, suma ese valor y la siguiente ronda vale <b>+1</b> mas. Si una rama se rompe, desaparece como prediccion activa y el cruce recuperable se marca en amarillo.</div>`;
+    return `<div class="notice info">Reglas de la llave: cada rama viva empieza en <b>+${base}</b>. Si el equipo pasa, suma ese valor y la siguiente ronda sube otros <b>+${base}</b>. Si una rama se rompe, desaparece como prediccion activa y el cruce recuperable se marca en amarillo.</div>`;
   }
   function renderBracket() {
     const b = STATE.bracket;
