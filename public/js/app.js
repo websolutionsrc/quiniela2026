@@ -78,6 +78,12 @@
         <b>${esc(a.label)}</b><span>${esc(a.text)}</span>
       </button>`).join('')}</div>`;
   }
+  function scrollChatToBottom() {
+    requestAnimationFrame(() => {
+      const box = document.querySelector('.chat-box');
+      if (box) box.scrollTop = box.scrollHeight;
+    });
+  }
   function render() {
     const s = STATE;
     const nav = [['ranking', '🏆 Clasificación'], ['grupos', '📝 Grupos']];
@@ -122,6 +128,7 @@
       <nav class="mainnav">${navHtml}</nav>
       <main class="content">${ui.notice ? `<div class="notice ${ui.notice.type}" role="alert">${esc(ui.notice.msg)}</div>` : ''}${renderActionAlerts()}${content}</main>`;
     ui.notice = null;
+    scrollChatToBottom();
   }
 
   // -------------------------------------------------------- Ranking --------
