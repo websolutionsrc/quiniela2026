@@ -328,6 +328,60 @@ function bettingDeadlineText(win) {
   return `hasta el ${day} a las ${time}`;
 }
 
+function madridShortDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
+}
+
+function bracketParentMap(tree) {
+  const out = {};
+  [...tree.r16, ...tree.qf, ...tree.sf, tree.final].forEach(n => {
+    out[n.childA] = n.id;
+    out[n.childB] = n.id;
+  });
+  return out;
+}
+
+function bracketPathToFinal(tree, nodeId) {
+  const parents = bracketParentMap(tree);
+  const path = [];
+  let id = nodeId;
+  while (id) {
+    path.push(id);
+    id = parents[id];
+  }
+  return path;
+}
+
+function currentBracketPicks(pred) {
+  const out = { ...(pred?.bracket?.picks || {}) };
+  Object.entries(pred?.bracket?.recoveries || {}).forEach(([nodeId, r]) => {
+    const pick = typeof r === 'string' ? r : r?.pick;
+    if (pick) out[nodeId] = pick;
+  });
+  return out;
+}
+
+function recoveryCandidatesFor(tree, r32Teams, picks, detail, forcedIds = []) {
+  const forced = new Set(forcedIds);
+  const byNode = Object.fromEntries((detail?.nodes || []).map(n => [n.nodeId, n]));
+  const out = {};
+  tree.r32.forEach(n => { out[n.id] = r32Teams[n.id] || { a: { label: n.a }, b: { label: n.b } }; });
+  const winner = (id) => {
+    const c = out[id];
+    const code = picks[id];
+    if (!code || !c) return null;
+    return [c.a, c.b].find(t => t?.code === code) || null;
+  };
+  [...tree.r16, ...tree.qf, ...tree.sf, tree.final].forEach(n => {
+    const match = byNode[n.id]?.match;
+    out[n.id] = forced.has(n.id) && match?.home && match?.away
+      ? { a: match.home, b: match.away }
+      : { a: winner(n.childA), b: winner(n.childB) };
+  });
+  return out;
+}
+
 function publicChat(limit = 120) {
   const rows = Array.isArray(db.chat) ? db.chat : [];
   return rows.slice(-limit).map(m => ({
@@ -395,9 +449,12 @@ function buildState(user) {
   const actions = [];
   const deadlineText = bettingDeadlineText(win);
   if (bracketOpen) actions.push({ tab: 'llave', level: 'warn', label: 'Llave pendiente', text: `Se acepta envio de llaves ${deadlineText}.` });
-  if (bracketDetail.actionRequired) actions.push({ tab: 'llave', level: 'warn', label: 'Llave requiere accion', text: `${bracketDetail.actionRequired} cruce${bracketDetail.actionRequired === 1 ? '' : 's'} para recuperar.` });
+  const actionNodes = bracketDetail.nodes.filter(n => n.recoveryOpen);
+  const actionDeadline = actionNodes.map(n => n.match?.utcDate).filter(Boolean).sort()[0];
+  if (bracketDetail.actionRequired) actions.push({ tab: 'llave', level: 'warn', label: 'Revisar llave', text: `${bracketDetail.actionRequired} accion${bracketDetail.actionRequired === 1 ? '' : 'es'} pendiente${bracketDetail.actionRequired === 1 ? '' : 's'} antes de ${madridShortDate(actionDeadline)}.` });
   const revisions = bracketDetail.nodes.filter(n => n.revisionOpen).length;
-  if (revisions) actions.push({ tab: 'llave', level: 'info', label: 'Cambios disponibles', text: `${revisions} cruce${revisions === 1 ? '' : 's'} se puede${revisions === 1 ? '' : 'n'} cambiar antes del partido.` });
+  const revisionDeadline = bracketDetail.nodes.filter(n => n.revisionOpen).map(n => n.match?.utcDate).filter(Boolean).sort()[0];
+  if (revisions) actions.push({ tab: 'llave', level: 'info', label: 'Cambios disponibles', text: `${revisions} cambio${revisions === 1 ? '' : 's'} opcional${revisions === 1 ? '' : 'es'} antes de ${madridShortDate(revisionDeadline)}.` });
   if (mvpOpen) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: `Se acepta envio de Bota de Oro ${deadlineText}.` });
   if (finalState.open) actions.push({ tab: 'final', level: 'warn', label: 'Final pendiente', text: 'Falta enviar la prediccion de la final.' });
 
@@ -582,14 +639,28 @@ async function handleApi(req, res, pathname) {
     const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
     if (!pred.bracket?.submitted) return sendJSON(res, 403, { error: 'Primero debes haber enviado tu llave inicial.' });
     const nodeId = String(b.nodeId || '');
-    const pick = String(b.pick || '');
+    const tree = buildTree();
+    const path = bracketPathToFinal(tree, nodeId);
+    const submittedPicks = b.picks && typeof b.picks === 'object' ? b.picks : { [nodeId]: String(b.pick || '') };
     const detail = buildUserBracketDetail(user.username, Score.userBracketTotals(user.username));
     const node = detail.nodes.find(n => n.nodeId === nodeId);
     if (!node || !(node.recoveryOpen || node.revisionOpen)) return sendJSON(res, 403, { error: 'Este cruce no permite recuperacion o cambio ahora mismo.' });
-    const valid = (node.recoveryOptions || []).some(t => t.code === pick);
-    if (!valid) return sendJSON(res, 400, { error: 'Equipo no válido para este cruce real.' });
+    const merged = currentBracketPicks(pred);
+    path.forEach(id => {
+      if (submittedPicks[id]) merged[id] = String(submittedPicks[id]);
+      else delete merged[id];
+    });
+    const r32Teams = Data.resolveR32Teams();
+    const cand = recoveryCandidatesFor(tree, r32Teams, merged, detail, path);
+    for (const id of path) {
+      const pick = merged[id];
+      if (!pick) return sendJSON(res, 400, { error: 'La reedicion esta incompleta: propaga la rama hasta la final.' });
+      const validPick = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean).includes(pick);
+      if (!validPick) return sendJSON(res, 400, { error: 'La reedicion no es coherente con el arbol.' });
+    }
     pred.bracket.recoveries = pred.bracket.recoveries || {};
-    pred.bracket.recoveries[nodeId] = { pick, at: new Date().toISOString() };
+    const at = new Date().toISOString();
+    path.forEach(id => { pred.bracket.recoveries[id] = { pick: merged[id], at, startedAt: nodeId }; });
     saveDB();
     return sendJSON(res, 200, { ok: true });
   }

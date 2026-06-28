@@ -254,6 +254,11 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .slot.recovery-pick { background: rgba(78,168,222,.16); font-weight: 700; }
 .slot .sname small { display: block; color: var(--muted); font-size: .62rem; font-weight: 600; line-height: 1.1; }
 .tie-actions { display: flex; flex-wrap: wrap; gap: .35rem; padding: .45rem .5rem; border-top: 1px dashed rgba(255,209,102,.35); }
+.segmented { display: inline-flex; gap: .25rem; padding: .25rem; border: 1px solid var(--line); border-radius: 999px; background: rgba(14,35,48,.65); margin: .4rem 0 .9rem; }
+.segmented button { border: 0; background: transparent; color: var(--muted); border-radius: 999px; padding: .45rem .8rem; font-weight: 800; cursor: pointer; }
+.segmented button.active { background: var(--primary); color: #031d18; }
+.action-jump { width: 100%; text-align: left; cursor: pointer; }
+.recovery-editor { margin-top: .6rem; }
 .champ-box { margin-top: .6rem; text-align: center; }
 .champ-box .champ { display: inline-block; background: rgba(255,209,102,.16); border: 1px solid var(--accent);
   border-radius: 10px; padding: .5rem 1rem; font-weight: 800; }
