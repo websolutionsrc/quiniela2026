@@ -344,6 +344,7 @@ function buildState(user) {
   const bracketVisible = !!bracketPred.submitted || win.groupsFinished || Data.bracketPreviewAvailable();
   const bracketDetail = buildUserBracketDetail(user.username, Score.userBracketTotals(user.username));
   const mvpVisible = win.groupsFinished || !!mvpPred.submitted || !!Data.actualMvp();
+  const mvpOpen = win.groupsFinished && mvpCandidates.length > 0 && !mvpPred.submitted && !Data.actualMvp();
   const fw = Data.finalWindow();
   const finalVisible = fw.teamsKnown || !!finalPred.submitted || !!Data.actualFinal();
   const finalState = {
@@ -362,7 +363,7 @@ function buildState(user) {
   if (bracketDetail.actionRequired) actions.push({ tab: 'llave', level: 'warn', label: 'Llave requiere accion', text: `${bracketDetail.actionRequired} cruce${bracketDetail.actionRequired === 1 ? '' : 's'} para recuperar.` });
   const revisions = bracketDetail.nodes.filter(n => n.revisionOpen).length;
   if (revisions) actions.push({ tab: 'llave', level: 'info', label: 'Cambios disponibles', text: `${revisions} cruce${revisions === 1 ? '' : 's'} se puede${revisions === 1 ? '' : 'n'} cambiar antes del partido.` });
-  if (win.open && !mvpPred.submitted) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: 'Falta elegir goleador del torneo.' });
+  if (mvpOpen) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: 'Falta elegir goleador del torneo.' });
   if (finalState.open) actions.push({ tab: 'final', level: 'warn', label: 'Final pendiente', text: 'Falta enviar la apuesta de la final.' });
 
   return {
@@ -394,7 +395,7 @@ function buildState(user) {
     },
     mvp: {
       visible: mvpVisible,
-      open: win.open && !mvpPred.submitted,
+      open: mvpOpen,
       window: win,
       submitted: !!mvpPred.submitted,
       submittedAt: mvpPred.at || null,
@@ -563,7 +564,9 @@ async function handleApi(req, res, pathname) {
     const b = await readBody(req);
     const win = Data.bracketWindow();
     const pred = db.predictions[user.username] || (db.predictions[user.username] = {});
-    if (!win.open) return sendJSON(res, 403, { error: 'La apuesta de Bota de Oro aún no está abierta.' });
+    if (!(win.groupsFinished && Data.mvpCandidates().length > 0 && !Data.actualMvp())) {
+      return sendJSON(res, 403, { error: 'La apuesta de Bota de Oro aún no está abierta.' });
+    }
     if (pred.mvp && pred.mvp.submitted) return sendJSON(res, 409, { error: 'Ya enviaste tu apuesta de Bota de Oro.' });
     const valid = Data.mvpCandidates().some(p => p.id === b.playerId);
     if (!valid) return sendJSON(res, 400, { error: 'Jugador no válido.' });
