@@ -519,7 +519,11 @@
       return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + renderRecoveryPanel(b.detail) + renderBranchTree(b.detail) + renderBracketGrid(false);
     }
     if (!b.window.open) {
-      const why = b.window.passedDeadline ? 'La llave ya esta cerrada.' : 'La llave se abrira cuando terminen los grupos y se conozcan los 32 equipos.';
+      const why = !b.window.groupsFinished
+        ? 'La llave se abrira cuando terminen los grupos.'
+        : (!b.window.bracketComplete
+          ? 'La llave se abrira cuando se asignen los mejores terceros y queden completos los 32 equipos.'
+          : 'La llave ya esta cerrada.');
       return head + `<div class="notice info">${why} Vista previa del cuadro:</div>` + renderBracketGrid(false);
     }
     if (!ui.bracketPicks) ui.bracketPicks = { ...(b.yourPicks || {}) };
