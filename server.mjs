@@ -808,11 +808,11 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(CONFIG.port, () => {
+server.listen(CONFIG.port, CONFIG.host, () => {
   console.log(`\n⚽ ${CONFIG.appName}`);
-  console.log(`   Servidor en http://localhost:${CONFIG.port}`);
+  console.log(`   Servidor en http://${CONFIG.host}:${CONFIG.port}`);
   if (CONFIG.simulatedNow) console.log(`   Reloj SIMULADO: ${CONFIG.simulatedNow} (pon REAL_CLOCK=1 para usar el real)`);
   console.log(`   Datos: ${CONFIG.api.token ? 'API football-data.org disponible' : 'sin token -> datos de ejemplo'}`);
-  console.log('   Para exponerlo:  cloudflared tunnel --url http://localhost:' + CONFIG.port + '\n');
+  console.log('   Para exponerlo:  cloudflared tunnel --url http://' + CONFIG.host + ':' + CONFIG.port + '\n');
   startResultsRefreshTimer();
 });

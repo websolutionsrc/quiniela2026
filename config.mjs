@@ -4,6 +4,7 @@
 export const CONFIG = {
   appName: 'Quiniela Mundial 2026',
   port: Number(process.env.PORT || 8026),
+  host: process.env.HOST || '127.0.0.1',
 
   // --- Admin inicial -------------------------------------------------------
   // Se crea automáticamente la primera vez que arranca el servidor.
