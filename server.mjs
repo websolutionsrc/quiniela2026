@@ -3,6 +3,8 @@
 //  Arranque:  node server.mjs
 // ============================================================================
 import { createServer } from 'node:http';
+import { createServer as createHttpsServer } from 'node:https';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname, normalize } from 'node:path';
@@ -810,7 +812,7 @@ function redirectCloudflareHttp(req, res) {
   return true;
 }
 
-const server = createServer(async (req, res) => {
+async function appHandler(req, res) {
   try {
     if (redirectCloudflareHttp(req, res)) return;
     const pathname = stripMountedPath(decodeURIComponent((req.url || '/').split('?')[0]));
@@ -819,7 +821,24 @@ const server = createServer(async (req, res) => {
   } catch (e) {
     sendJSON(res, 500, { error: e.message || 'Error del servidor' });
   }
-});
+}
+
+function startTlsOrigin() {
+  if (!CONFIG.tls.port) return;
+  if (!CONFIG.tls.cert || !CONFIG.tls.key || !existsSync(CONFIG.tls.cert) || !existsSync(CONFIG.tls.key)) {
+    console.warn('   TLS local no iniciado: faltan TLS_CERT/TLS_KEY o los ficheros no existen.');
+    return;
+  }
+  const tlsServer = createHttpsServer({
+    cert: readFileSync(CONFIG.tls.cert),
+    key: readFileSync(CONFIG.tls.key),
+  }, appHandler);
+  tlsServer.listen(CONFIG.tls.port, CONFIG.host, () => {
+    console.log(`   Origen HTTPS local en https://${CONFIG.host}:${CONFIG.tls.port}`);
+  });
+}
+
+const server = createServer(appHandler);
 
 server.listen(CONFIG.port, CONFIG.host, () => {
   console.log(`\n⚽ ${CONFIG.appName}`);
@@ -827,5 +846,6 @@ server.listen(CONFIG.port, CONFIG.host, () => {
   if (CONFIG.simulatedNow) console.log(`   Reloj SIMULADO: ${CONFIG.simulatedNow} (pon REAL_CLOCK=1 para usar el real)`);
   console.log(`   Datos: ${CONFIG.api.token ? 'API football-data.org disponible' : 'sin token -> datos de ejemplo'}`);
   console.log('   Para exponerlo:  cloudflared tunnel --url http://' + CONFIG.host + ':' + CONFIG.port + '\n');
+  startTlsOrigin();
   startResultsRefreshTimer();
 });
