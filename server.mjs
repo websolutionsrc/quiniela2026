@@ -798,8 +798,21 @@ async function serveStatic(req, res, pathname) {
 }
 
 // --------------------------------------------------------- servidor --------
+function redirectCloudflareHttp(req, res) {
+  const proto = String(req.headers['x-forwarded-proto'] || '').toLowerCase();
+  const host = String(req.headers.host || '');
+  if (proto !== 'http' || !host || /^localhost(:|$)|^127\.0\.0\.1(:|$)/i.test(host)) return false;
+  res.writeHead(308, {
+    Location: `https://${host}${req.url || '/'}`,
+    'Cache-Control': 'no-store',
+  });
+  res.end();
+  return true;
+}
+
 const server = createServer(async (req, res) => {
   try {
+    if (redirectCloudflareHttp(req, res)) return;
     const pathname = stripMountedPath(decodeURIComponent((req.url || '/').split('?')[0]));
     if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname);
     return await serveStatic(req, res, pathname);
