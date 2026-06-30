@@ -532,6 +532,7 @@
   function currentTreeStatusText(n) {
     if (!n) return '';
     if (n.resolved) return n.hit ? `+${n.points || 0}` : '+0';
+    if (n.recoveryPending) return 'rota · espera';
     if (n.recoveryOpen) return 'accion';
     if (n.revisionOpen) return 'opcional';
     if (n.branchType) return `racha +${n.branchValue || bracketBaseV2()}`;
@@ -672,6 +673,7 @@
   function branchLabel(n) {
     if (!n) return '';
     if (n.recoveryOpen) return 'Requiere accion: elige quien pasa';
+    if (n.recoveryPending) return 'Rama rota · recuperacion pendiente de cierre de ronda';
     if (n.revisionOpen) return 'Puedes cambiar antes del partido';
     if (n.hit) return `Acerto +${n.points || 0} · proximo +${n.nextValue || 0}`;
     if (n.status === 'broken') return n.actualWinnerTeam ? `Rama rota · paso ${n.actualWinnerTeam.name}` : 'Rama rota';
@@ -682,6 +684,7 @@
   }
   function branchClass(n) {
     if (!n) return '';
+    if (n.recoveryPending) return 'recovery-pending';
     if (n.recoveryOpen) return 'recovery-open';
     if (n.revisionOpen) return 'revision-open';
     if (n.hit) return 'won';
@@ -759,6 +762,7 @@
   function tieStatusText(n) {
     if (!n) return 'Pendiente';
     if (n.recoveryOpen) return 'Requiere accion';
+    if (n.recoveryPending) return 'Rama rota · espera cierre de ronda';
     if (n.revisionOpen) return 'Puedes cambiar';
     if (n.hit) return `+${n.points || 0} · proximo +${n.nextValue || 0}`;
     if (n.status === 'broken') return 'Rama rota';
@@ -831,7 +835,7 @@
       </div>`;
     }
     if (!d || !d.submitted) return `<div class="detail-card"><h3>Llave</h3><p class="sub">Sin llave enviada.</p></div>`;
-    const rows = (d.nodes || []).filter(n => n.resolved || n.recoveryOpen).slice(0, 8);
+    const rows = (d.nodes || []).filter(n => n.resolved || n.recoveryOpen || n.recoveryPending).slice(0, 8);
     const body = rows.length
       ? rows.map(n => `<div class="detail-line ${n.hit ? 'ok' : ''}"><span>${esc(n.roundName)}</span>${branchNodeMainV2(n)}<b>${esc(branchLabel(n))}</b></div>`).join('')
       : `<p class="sub">${d.hasResult ? 'No tiene cruces acertados resueltos todavia.' : 'La llave aun no tiene resultados para comparar.'}</p>`;
@@ -882,9 +886,12 @@
     const submittedHead = `<div class="section-head"><h2>Llave eliminatoria</h2><p>Tu llave ya fue enviada. El arbol se actualiza con los equipos reales que avanzan.</p></div>`;
     if (b.submitted) {
       const actionCount = b.detail?.actionRequired || 0;
+      const pendingCount = b.detail?.recoveryPending || 0;
       const actionNotice = actionCount
         ? `<button class="notice warn action-jump" data-action="bracket-view" data-view="tracking">Requiere accion: tienes ${actionCount} cruce${actionCount === 1 ? '' : 's'} pendiente${actionCount === 1 ? '' : 's'}. Revisar en Seguimiento.</button>`
-        : `<div class="notice ok">Sin acciones pendientes ahora mismo.</div>`;
+        : (pendingCount
+          ? `<div class="notice info">${pendingCount} rama${pendingCount === 1 ? '' : 's'} rota${pendingCount === 1 ? '' : 's'}. La recuperacion se abrira cuando cierre la ronda completa.</div>`
+          : `<div class="notice ok">Sin acciones pendientes ahora mismo.</div>`);
       const view = ui.bracketView || 'tree';
       const switcher = `<div class="segmented">
         <button class="${view === 'tree' ? 'active' : ''}" data-action="bracket-view" data-view="tree">Tu arbol actual</button>

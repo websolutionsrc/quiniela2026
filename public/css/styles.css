@@ -164,6 +164,7 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .recovery-card { border-top: 1px dashed var(--line); padding-top: .55rem; margin-top: .55rem; }
 .recovery-options { display: flex; gap: .45rem; flex-wrap: wrap; margin-top: .45rem; }
 .branch-node.recovery-open { border-color: var(--accent); background: rgba(255,209,102,.16); box-shadow: inset 3px 0 0 var(--accent); }
+.branch-node.recovery-pending { border-color: var(--accent); background: rgba(255,209,102,.10); border-style: dashed; }
 .branch-node.revision-open { border-color: var(--done); background: rgba(78,168,222,.14); box-shadow: inset 3px 0 0 var(--done); }
 .branch-node.recovered { border-color: var(--done); background: rgba(78,168,222,.13); }
 .branch-node.closed { opacity: 1; background: var(--panel); }
@@ -238,6 +239,7 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .status-tie.won { border-color: var(--primary); background: rgba(0,184,148,.12); }
 .status-tie.broken { border-color: var(--danger); background: rgba(239,71,111,.12); }
 .status-tie.recovery-open { border-color: var(--accent); background: rgba(255,209,102,.16); box-shadow: inset 0 3px 0 var(--accent); }
+.status-tie.recovery-pending { border-color: var(--accent); background: rgba(255,209,102,.10); border-style: dashed; }
 .status-tie.revision-open { border-color: var(--done); background: rgba(78,168,222,.13); box-shadow: inset 0 3px 0 var(--done); }
 .status-tie.recovered { border-color: var(--done); background: rgba(78,168,222,.12); }
 .status-tie.inactive { border-style: dashed; }
@@ -246,6 +248,7 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .status-tie.won .tie-status { color: #8ff0d6; }
 .status-tie.broken .tie-status { color: #ff9bb0; }
 .status-tie.recovery-open .tie-status { color: var(--accent); }
+.status-tie.recovery-pending .tie-status { color: var(--accent); }
 .status-tie.revision-open .tie-status { color: #9bd8ff; }
 .slot.hit-pick { background: rgba(0,184,148,.26); box-shadow: inset 3px 0 0 var(--primary); }
 .slot.broken-pick { background: rgba(239,71,111,.22); box-shadow: inset 3px 0 0 var(--danger); }

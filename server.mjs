@@ -195,6 +195,7 @@ function buildUserBracketDetail(username, totals) {
     closed: ev.closed,
     bestActive: ev.bestActive,
     actionRequired: ev.actionRequired,
+    recoveryPending: ev.recoveryPending,
     branches: ev.branches.map(b => ({ ...b, team: wf(b.team) })),
     nodes,
     picks: nodes,
@@ -454,6 +455,7 @@ function buildState(user) {
   const actionNodes = bracketDetail.nodes.filter(n => n.recoveryOpen);
   const actionDeadline = actionNodes.map(n => n.match?.utcDate).filter(Boolean).sort()[0];
   if (bracketDetail.actionRequired) actions.push({ tab: 'llave', level: 'warn', label: 'Revisar llave', text: `${bracketDetail.actionRequired} accion${bracketDetail.actionRequired === 1 ? '' : 'es'} pendiente${bracketDetail.actionRequired === 1 ? '' : 's'} antes de ${madridShortDate(actionDeadline)}.` });
+  if (!bracketDetail.actionRequired && bracketDetail.recoveryPending) actions.push({ tab: 'llave', level: 'info', label: 'Ramas rotas', text: `${bracketDetail.recoveryPending} rama${bracketDetail.recoveryPending === 1 ? '' : 's'} rota${bracketDetail.recoveryPending === 1 ? '' : 's'}; la recuperacion se abrira cuando cierre la ronda.` });
   const revisions = bracketDetail.nodes.filter(n => n.revisionOpen).length;
   const revisionDeadline = bracketDetail.nodes.filter(n => n.revisionOpen).map(n => n.match?.utcDate).filter(Boolean).sort()[0];
   if (revisions) actions.push({ tab: 'llave', level: 'info', label: 'Cambios disponibles', text: `${revisions} cambio${revisions === 1 ? '' : 's'} opcional${revisions === 1 ? '' : 'es'} antes de ${madridShortDate(revisionDeadline)}.` });
