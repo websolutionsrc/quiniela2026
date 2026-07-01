@@ -1089,7 +1089,8 @@
 
   // ----------------------------------------------------- Bota de Oro -------
   function mvpGrid(m, selected) {
-    return `<div class="mvp-grid">${m.candidates.map(p => {
+    const players = (m.window?.passedDeadline && m.liveScorers?.length) ? m.liveScorers : m.candidates;
+    return `<div class="mvp-grid">${players.map(p => {
       const sel = selected === p.id || (m.submitted && m.yourPick === p.id);
       const flag = flagImg(p.flag, 'flag flag-lg');
       const click = (m.open && !m.submitted) ? ` data-action="mvp-pick" data-player="${esc(p.id)}"` : '';
@@ -1099,8 +1100,11 @@
     }).join('')}</div>`;
   }
   function mvpSubmittedSummary(m) {
-    const pick = m.candidates.find(p => p.id === m.yourPick);
-    const top = m.candidates.slice(0, 5);
+    const frozenPick = m.candidates.find(p => p.id === m.yourPick);
+    const live = (m.window?.passedDeadline && m.liveScorers?.length) ? m.liveScorers : m.candidates;
+    const livePick = live.find(p => p.id === m.yourPick);
+    const pick = livePick || frozenPick;
+    const top = live.slice(0, 5);
     const row = (p, i, extra = '') => {
       const goals = p?.goals != null ? `${p.goals} goles` : 'goles no disponibles';
       return `<div class="mvp-row ${p?.id === m.yourPick ? 'sel' : ''}"><span>${i ? `${i}.` : 'Tu eleccion'}</span>${flagImg(p?.flag, 'flag flag-sm')}<b>${esc(p?.name || '—')}</b><em>${esc(goals)}</em>${extra}</div>`;
@@ -1108,9 +1112,11 @@
     const actual = m.actual
       ? (m.actual === m.yourPick ? `<span class="pts hit">+${m.points} pts</span>` : '<span class="pts">+0 pts</span>')
       : '<span class="pts">Pendiente</span>';
+    const updatedAt = m.liveScorersAt ? `<p class="sub">Goleadores actualizados: ${fmt(m.liveScorersAt)}</p>` : '';
     return `<div class="mvp-compact">
       ${row(pick, 0, actual)}
       <h3>Top 5 goleadores del Mundial</h3>
+      ${updatedAt}
       ${top.map((p, i) => row(p, i + 1)).join('')}
     </div>`;
   }

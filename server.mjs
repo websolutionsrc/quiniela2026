@@ -417,6 +417,7 @@ function buildState(user) {
   const finalPred = db.predictions[user.username]?.final || {};
   const gPicks = groupPred.picks || {};
   const mvpCandidates = Data.mvpCandidates();
+  const mvpLiveScorers = Data.mvpLiveScorers();
 
   // --- Grupos ---
   const allGroup = Data.groupMatches().slice().sort(sortGroupMatch);
@@ -499,9 +500,12 @@ function buildState(user) {
       actual: Data.actualMvp(),
       points: CONFIG.mvp.points,
       candidates: mvpCandidates.map(p => ({ ...p, flag: flagUrlFromCode(p.code) })),
+      liveScorers: mvpLiveScorers.map(p => ({ ...p, flag: flagUrlFromCode(p.code) })),
       candidatesSource: data.mvpCandidatesSource || (data.testMode ? 'test' : 'config'),
       candidatesLocked: !!data.mvpCandidatesLocked,
       candidatesAt: data.mvpCandidatesAt || null,
+      liveScorersAt: data.mvpLiveScorersAt || null,
+      liveScorersSource: data.mvpLiveScorersSource || null,
     },
     final: finalState,
     actions,
