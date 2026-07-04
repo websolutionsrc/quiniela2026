@@ -795,8 +795,9 @@
     const allowed = opts.allowedIds ? new Set(opts.allowedIds) : null;
     const actionName = opts.action || 'pick';
     const detailMap = opts.detail ? detailByNode(opts.detail) : {};
-    const cand = (opts.detail && opts.allowedIds)
-      ? computeCandidatesWithReal(tree, picks || {}, opts.detail, opts.allowedIds)
+    const realForcedIds = opts.useReal ? bracketNodesInOrder(tree).map(n => n.id) : opts.allowedIds;
+    const cand = (opts.detail && realForcedIds)
+      ? computeCandidatesWithReal(tree, picks || {}, opts.detail, realForcedIds)
       : computeCandidates(tree, picks || {});
     const editMode = opts.detail && actionName === 'recovery-edit-pick';
     const branchInfo = editMode ? draftBranchInfoMap(tree, opts.detail, picks || {}, opts.allowedIds || []) : {};
@@ -1185,6 +1186,28 @@
     const base = bracketBaseV2();
     return `<div class="notice info">Reglas de la llave: cada rama viva empieza en <b>+${base}</b>. Si el equipo pasa, suma ese valor y la siguiente ronda sube otros <b>+${base}</b>. Si una rama se rompe, desaparece como prediccion activa y el cruce recuperable se marca en amarillo.</div>`;
   }
+  function renderBracketSubmissionHistory(detail) {
+    const history = (detail?.submissionHistory || []).filter(x => x.at);
+    if (!history.length) return '';
+    const latest = history[history.length - 1];
+    const older = history.slice(0, -1).reverse();
+    const latestLabel = latest.type === 'initial'
+      ? `Enviaste tu llave de ${esc(latest.phaseName || '1/16')}`
+      : `Enviaste tu llave de ${esc(latest.phaseName || 'esta fase')}`;
+    const latestMeta = latest.type === 'reedit'
+      ? ` · ${latest.changed || 0} cambios, ${latest.reviewed || 0} revisados`
+      : '';
+    const current = `<div class="notice ok"><b>${latestLabel}</b> el ${fmt(latest.at)}${latestMeta}.</div>`;
+    if (!older.length) return current;
+    const rows = older.map(item => {
+      const label = item.type === 'initial'
+        ? `Llave de ${esc(item.phaseName || '1/16')}`
+        : `Llave de ${esc(item.phaseName || 'fase')}`;
+      const meta = item.type === 'reedit' ? ` · ${item.changed || 0} cambios` : '';
+      return `<div class="detail-line"><span>${label}</span><b>${fmt(item.at)}${meta}</b></div>`;
+    }).join('');
+    return current + `<details class="notice info bracket-history"><summary>Historial de envios anteriores</summary>${rows}</details>`;
+  }
   function renderBracket() {
     const b = STATE.bracket;
     const head = `<div class="section-head"><h2>Llave eliminatoria</h2><p>Elige quien avanza en cada cruce hasta el campeon. Se envia <b>una sola vez</b>.</p></div>`;
@@ -1194,24 +1217,24 @@
       const pendingCount = b.detail?.recoveryPending || 0;
       const editCount = openRecoveryNodes(b.detail).length;
       const actionNotice = actionCount
-        ? `<button class="notice warn action-jump" data-action="bracket-view" data-view="tracking">Requiere accion: tienes ${actionCount} cruce${actionCount === 1 ? '' : 's'} pendiente${actionCount === 1 ? '' : 's'}. Abrir Reedicion.</button>`
+        ? `<button class="notice warn action-jump" data-action="bracket-view" data-view="tracking">Requiere accion: tienes ${actionCount} cruce${actionCount === 1 ? '' : 's'} pendiente${actionCount === 1 ? '' : 's'}. Abrir seguimiento.</button>`
         : (editCount
-          ? `<button class="notice info action-jump" data-action="bracket-view" data-view="tracking">Reedicion disponible: revisa ${editCount} cruce${editCount === 1 ? '' : 's'} antes de enviar el arbol pendiente.</button>`
+          ? `<button class="notice info action-jump" data-action="bracket-view" data-view="tracking">Seguimiento disponible: revisa ${editCount} cruce${editCount === 1 ? '' : 's'} antes de enviar el arbol pendiente.</button>`
           : (pendingCount
           ? `<div class="notice info">${pendingCount} rama${pendingCount === 1 ? '' : 's'} rota${pendingCount === 1 ? '' : 's'}. La recuperacion se abrira cuando cierre la ronda completa.</div>`
           : `<div class="notice ok">Sin acciones pendientes ahora mismo.</div>`));
       const view = ui.bracketView || 'tree';
       const switcher = `<div class="segmented">
         <button class="${view === 'tree' ? 'active' : ''}" data-action="bracket-view" data-view="tree">Tu arbol actual</button>
-        <button class="${view === 'tracking' ? 'active' : ''}" data-action="bracket-view" data-view="tracking">Reedicion</button>
+        <button class="${view === 'tracking' ? 'active' : ''}" data-action="bracket-view" data-view="tracking">Seguimiento</button>
       </div>`;
       const currentPicks = currentPickMapFromDetail(b.detail);
-      const fullTree = `<h3 class="group-title">Tu arbol actual</h3>${renderBracketGrid(false, { picks: currentPicks, detail: b.detail })}`;
+      const fullTree = `<h3 class="group-title">Tu arbol actual</h3>${renderBracketGrid(false, { picks: currentPicks, detail: b.detail, useReal: true })}`;
       if (view === 'tracking') ensureRecoveryEdit(b.detail);
       const trackingBody = renderRecoveryEditor() || (renderBracketStatusGrid(b.detail, true) + renderSelectedBranchDetail(b.detail));
-      const trackingTitle = ui.recoveryEdit ? 'Reedicion del arbol' : 'Arbol de seguimiento';
+      const trackingTitle = 'Seguimiento del arbol';
       const tracking = `<h3 class="group-title">${trackingTitle}</h3>${trackingBody}${renderRecoveryConfirm()}`;
-      return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + actionNotice + switcher + (view === 'tracking' ? tracking : fullTree);
+      return submittedHead + renderBracketSubmissionHistory(b.detail) + rulesBracket() + actionNotice + switcher + (view === 'tracking' ? tracking : fullTree);
     }
     if (!b.window.open) {
       const why = b.window.passedDeadline ? 'La llave ya esta cerrada.' : 'La llave se abrira cuando terminen los grupos y se conozcan los 32 equipos.';

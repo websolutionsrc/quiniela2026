@@ -172,6 +172,7 @@ function selectedTeamForNode(nodeId, code, cand) {
 }
 function buildUserBracketDetail(username, totals) {
   const ev = Score.evaluateBracket(username);
+  const pred = db.predictions[username]?.bracket || {};
   const toTeam = (code) => code ? wf(teamFromCode(code)) : null;
   const nodes = ev.nodes.map(n => ({
     ...n,
@@ -199,10 +200,44 @@ function buildUserBracketDetail(username, totals) {
     optionalActions: ev.optionalActions,
     recoveryPending: ev.recoveryPending,
     branches: ev.branches.map(b => ({ ...b, team: wf(b.team) })),
+    submissionHistory: bracketSubmissionHistory(pred),
     nodes,
     picks: nodes,
     correctPicks: nodes.filter(p => p.hit),
   };
+}
+function bracketSubmissionHistory(pred) {
+  if (!pred?.submitted) return [];
+  const tree = buildTree();
+  const byNode = Object.fromEntries(bracketNodesInOrder(tree).map(n => [n.id, n]));
+  const rows = [{ phase: 'R32', phaseName: ROUND_LABELS.R32, at: pred.at || null, type: 'initial', count: Object.keys(pred.picks || {}).length }];
+  const groups = {};
+  Object.entries(pred.recoveries || {}).forEach(([nodeId, rec]) => {
+    const meta = typeof rec === 'object' ? rec : { pick: rec };
+    const at = meta.at || pred.at || null;
+    const startedAt = meta.startedAt || nodeId;
+    const key = `${at || ''}|${startedAt}`;
+    groups[key] = groups[key] || { at, startedAt, nodeIds: [], reviewed: 0, changed: 0 };
+    groups[key].nodeIds.push(nodeId);
+    if (meta.reviewed) groups[key].reviewed++;
+    if (meta.pick && meta.pick !== pred.picks?.[nodeId]) groups[key].changed++;
+  });
+  Object.values(groups).forEach(g => {
+    const node = byNode[g.startedAt] || byNode[g.nodeIds[0]];
+    const phase = node?.round || 'R16';
+    rows.push({
+      phase,
+      phaseName: ROUND_LABELS[phase] || phase,
+      at: g.at,
+      type: 'reedit',
+      count: g.nodeIds.length,
+      changed: g.changed,
+      reviewed: g.reviewed,
+    });
+  });
+  return rows
+    .sort((a, b) => new Date(a.at || 0) - new Date(b.at || 0))
+    .map((row, index, all) => ({ ...row, current: index === all.length - 1 }));
 }
 function firstKickoffForRound(round) {
   const matches = Data.knockoutMatches()

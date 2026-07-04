@@ -281,6 +281,9 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .action-jump.notice.info { color: #d9f1ff; }
 .action-jump.notice.warn { color: #ffe9b8; }
 .action-jump.notice.ok { color: #b6f5e6; }
+.bracket-history { cursor: default; }
+.bracket-history summary { cursor: pointer; font-weight: 800; color: #d9f1ff; }
+.bracket-history .detail-line { margin-top: .45rem; }
 .recovery-editor { margin-top: .6rem; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 1rem;
   background: rgba(4, 18, 28, .72); backdrop-filter: blur(3px); }
