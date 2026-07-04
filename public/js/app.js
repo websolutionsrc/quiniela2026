@@ -453,6 +453,7 @@
     const forced = new Set(forcedIds);
     const by = detailByNode(detail);
     const cand = {};
+    const knownReal = (m) => !!(m?.home?.code && m?.away?.code && !m.home.tbd && !m.away.tbd);
     tree.r32.forEach(n => { cand[n.id] = { a: teamObj(n.teams.a), b: teamObj(n.teams.b) }; });
     const winner = (id) => {
       const c = cand[id], code = picks[id];
@@ -463,7 +464,7 @@
     };
     [tree.r16, tree.qf, tree.sf, [tree.final]].forEach(nodes => nodes.forEach(n => {
       const real = by[n.id]?.match;
-      cand[n.id] = forced.has(n.id) && real?.home && real?.away
+      cand[n.id] = forced.has(n.id) && knownReal(real)
         ? { a: real.home, b: real.away }
         : { a: winner(n.childA), b: winner(n.childB) };
     }));
@@ -521,14 +522,38 @@
     return ids.length ? ids : recoveryPath(tree, fromNodeId);
   }
   function activeChildPickForNode(tree, detail, nodeId, valid) {
+    const live = incomingLiveBranches(tree, detail, nodeId, valid);
+    return live.length === 1 ? live[0].code : null;
+  }
+  function detailTeamByCode(detail, code) {
+    if (!code) return null;
+    const teams = [];
+    (detail?.nodes || []).forEach(n => {
+      [n.originalPickTeam, n.recoveryPickTeam, n.activePickTeam, n.actualWinnerTeam, n.match?.home, n.match?.away]
+        .filter(Boolean)
+        .forEach(t => teams.push(t));
+      (n.recoveryOptions || []).forEach(t => teams.push(t));
+    });
+    return teams.find(t => t.code === code) || { code, name: code };
+  }
+  function incomingLiveBranches(tree, detail, nodeId, validCodes = null) {
     const node = bracketNodesInOrder(tree).find(n => n.id === nodeId);
-    if (!node?.childA) return null;
+    if (!node?.childA) return [];
     const by = detailByNode(detail);
+    const valid = validCodes ? new Set(validCodes) : null;
     const children = [by[node.childA], by[node.childB]].filter(Boolean);
-    const live = children
-      .map(ch => ch.hit ? ch.activePick : (ch.activePick && ch.branchType ? ch.activePick : null))
-      .filter(code => code && valid.includes(code));
-    return live.length === 1 ? live[0] : null;
+    return children.map(ch => {
+      const code = ch.hit ? ch.activePick : (ch.activePick && ch.branchType ? ch.activePick : null);
+      if (!code || (valid && !valid.has(code))) return null;
+      return {
+        code,
+        team: ch.activePickTeam || ch.actualWinnerTeam || ch.recoveryPickTeam || ch.originalPickTeam || detailTeamByCode(detail, code),
+        type: ch.branchType || 'original',
+        value: ch.nextValue || ch.branchValue || bracketBaseV2(),
+        nodeId: ch.nodeId,
+        round: ch.roundName,
+      };
+    }).filter(Boolean);
   }
   function defaultRecoveryPick(tree, detail, id, picks, allowedIds) {
     const by = detailByNode(detail);
@@ -593,15 +618,31 @@
   function detailByNode(detail) {
     return Object.fromEntries((detail?.nodes || []).map(n => [n.nodeId, n]));
   }
-  function recoveryConflictSummary(detail, picks, allowedIds) {
+  function recoveryConflictSummary(tree, detail, picks, allowedIds) {
     const by = detailByNode(detail);
     const conflicts = [];
+    const seen = new Set();
     allowedIds.forEach(id => {
       const n = by[id], pick = picks[id];
-      if (!n || !pick || !n.activePick || pick === n.activePick) return;
-      const activeLive = !!n.branchType && !n.resolved;
-      if (!activeLive) return;
-      conflicts.push({ team: n.activePickTeam, round: n.roundName, type: n.branchType, value: n.branchValue || bracketBaseV2() });
+      if (!n || !pick) return;
+      if (n.activePick && pick !== n.activePick && !!n.branchType && !n.resolved) {
+        const key = `${id}:${n.activePick}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          conflicts.push({ team: n.activePickTeam || detailTeamByCode(detail, n.activePick), round: n.roundName, type: n.branchType, value: n.branchValue || bracketBaseV2(), source: 'current' });
+        }
+      }
+      const cand = computeCandidatesWithReal(tree, picks, detail, allowedIds);
+      const valid = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
+      const plannedContinuations = [n.activePick, n.recoveryPick, n.originalPick].filter(Boolean);
+      incomingLiveBranches(tree, detail, id, valid).forEach(br => {
+        if (!plannedContinuations.includes(br.code)) return;
+        if (br.code === pick) return;
+        const key = `${id}:${br.code}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        conflicts.push({ team: br.team, round: n.roundName, type: br.type, value: br.value || bracketBaseV2(), source: 'incoming' });
+      });
     });
     const total = conflicts.reduce((s, x) => s + x.value, 0);
     return { conflicts, total };
@@ -613,7 +654,7 @@
     const picks = edit?.picks ? { ...edit.picks } : currentPickMapFromDetail(detail);
     if (pick) picks[nodeId] = pick;
     propagateRecoveryPicks(tree, picks, detail, allowedIds, nodeId);
-    return { nodeId, pick, allowedIds, picks, conflicts: recoveryConflictSummary(detail, picks, allowedIds) };
+    return { nodeId, pick, allowedIds, picks, conflicts: recoveryConflictSummary(tree, detail, picks, allowedIds) };
   }
   function startRecoveryConfirm(nodeId, pick, edit = null) {
     if (!edit) ui.recoveryEdit = null;
@@ -628,14 +669,33 @@
     if (n.branchType) return `racha +${n.branchValue || bracketBaseV2()}`;
     return 'pendiente';
   }
-  function editTreeStatusText(n, pick) {
+  function editTreeStatusText(n, pick, incoming = []) {
     if (!n) return '';
     if (n.resolved) return n.hit ? `+${n.points || 0}` : '+0';
     if (!pick) return n.recoveryOpen ? 'elige ganador' : 'pendiente';
     if (pick === n.activePick && n.branchType) return `mantiene racha +${n.branchValue || bracketBaseV2()}`;
+    const incomingBranch = incoming.find(br => br.code === pick);
+    if (incomingBranch) return `mantiene racha +${incomingBranch.value || bracketBaseV2()}`;
+    if (incoming.length && incoming.every(br => br.code !== pick)) return `cambia rama +${bracketBaseV2()} si pasa`;
     if (n.recoveryOpen) return `recuperada +${bracketBaseV2()} si pasa`;
     if (n.revisionOpen) return `cambio +${bracketBaseV2()} si pasa`;
     return `reedicion +${bracketBaseV2()} si pasa`;
+  }
+  function editTieClass(n, pick, incoming = []) {
+    if (!n) return '';
+    const incomingBranch = incoming.find(br => br.code === pick);
+    if (incomingBranch?.type === 'recovered') return 'recovered';
+    if (incomingBranch?.type === 'original') return 'original';
+    if (pick && incoming.length && incoming.every(br => br.code !== pick)) return 'revision-open draft-change';
+    if (pick && pick !== n.activePick && n.recoveryOpen) return 'recovery-open draft-change';
+    if (pick && pick !== n.activePick && n.revisionOpen) return 'revision-open draft-change';
+    if (pick === n.activePick && n.branchType === 'recovered') return 'recovered';
+    if (pick === n.activePick && n.branchType === 'original') return 'original';
+    if (!pick && n.recoveryOpen) return 'recovery-open';
+    if (!pick && n.revisionOpen) return 'revision-open';
+    if (!pick && incoming[0]?.type === 'recovered') return 'recovered';
+    if (!pick && incoming[0]?.type === 'original') return 'original';
+    return '';
   }
   function slotHtml(node, which, team, picks, interactive, actualSet, actionName = 'pick') {
     const code = team && team.code;
@@ -673,12 +733,17 @@
       <div class="round"><div class="round-head">${col.head}</div>
         ${col.nodes.map(n => {
           const c = cand[n.id];
+          const nd = detailMap[n.id];
+          const currentPick = (picks || {})[n.id];
+          const validCodes = [c.a?.code, c.b?.code].filter(Boolean);
+          const incoming = opts.detail && actionName === 'recovery-edit-pick' ? incomingLiveBranches(tree, opts.detail, n.id, validCodes) : [];
           const nodeInteractive = interactive && (!allowed || allowed.has(n.id));
           const statusText = opts.detail && actionName === 'recovery-edit-pick'
-            ? editTreeStatusText(detailMap[n.id], (picks || {})[n.id])
-            : currentTreeStatusText(detailMap[n.id]);
+            ? editTreeStatusText(nd, currentPick, incoming)
+            : currentTreeStatusText(nd);
           const status = opts.detail ? `<div class="tie-status">${esc(statusText)}</div>` : '';
-          return `<div class="tie ${interactive ? 'clickable' : ''} ${col.round === 'FINAL' ? 'final-tie' : ''}">
+          const editClass = opts.detail && actionName === 'recovery-edit-pick' ? editTieClass(nd, currentPick, incoming) : '';
+          return `<div class="tie ${interactive ? 'clickable' : ''} ${editClass} ${col.round === 'FINAL' ? 'final-tie' : ''}">
             ${status}
             ${slotHtml(n, 'a', c.a, picks || {}, nodeInteractive, showActual ? setFor[col.round] : null, actionName)}
             ${slotHtml(n, 'b', c.b, picks || {}, nodeInteractive, showActual ? setFor[col.round] : null, actionName)}
@@ -981,7 +1046,7 @@
     const next = node?.advancesTo === 'CHAMP' ? 'campeon' : roundShort(node?.advancesTo || '');
     const gain = node?.activePick === c.pick ? (node?.branchValue || bracketBaseV2()) : bracketBaseV2();
     const conflictText = c.conflicts.conflicts.length
-      ? `<p class="sub">Rompes ${c.conflicts.conflicts.length} racha${c.conflicts.conflicts.length === 1 ? '' : 's'} viva${c.conflicts.conflicts.length === 1 ? '' : 's'} y renuncias a <b>+${c.conflicts.total}</b> puntos potenciales: ${c.conflicts.conflicts.map(x => `${esc(x.team?.name || x.team?.code || 'equipo')} (+${x.value})`).join(', ')}.</p>`
+      ? `<p class="sub">Rompes ${c.conflicts.conflicts.length} racha${c.conflicts.conflicts.length === 1 ? '' : 's'} viva${c.conflicts.conflicts.length === 1 ? '' : 's'}, incluyendo ramas que vienen de la fase anterior, y renuncias a <b>+${c.conflicts.total}</b> puntos potenciales: ${c.conflicts.conflicts.map(x => `${esc(x.team?.name || x.team?.code || 'equipo')} (+${x.value})`).join(', ')}.</p>`
       : (node?.recoveryOpen ? `<p class="sub">Recuperas una rama rota. Si aciertas este cruce, suma <b>+${gain}</b> y la siguiente racha sube.</p>` : '<p class="sub">No rompes ninguna racha viva en este cambio.</p>');
     return `<div class="modal-backdrop" data-action="recovery-confirm-cancel">
       <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="recovery-confirm-title" data-modal-card>
@@ -1004,9 +1069,9 @@
     const clearLabel = node?.roundName || 'esta ronda';
     const selectedCount = validRecoveryPickCount(STATE.bracket.tree, edit.picks, detail, edit.allowedIds);
     const complete = selectedCount === edit.allowedIds.length;
-    const conflicts = recoveryConflictSummary(detail, edit.picks, edit.allowedIds);
+    const conflicts = recoveryConflictSummary(STATE.bracket.tree, detail, edit.picks, edit.allowedIds);
     const conflictNotice = conflicts.conflicts.length
-      ? `<div class="notice warn">Recuerda: esta reedicion rompe ${conflicts.conflicts.length} racha viva y mueve la prediccion al equipo nuevo. Renuncias a <b>+${conflicts.total}</b> puntos potenciales si esa rama pasaba: ${conflicts.conflicts.map(c => `${esc(c.team?.name || c.team?.code || 'equipo')} (+${c.value})`).join(', ')}.</div>`
+      ? `<div class="notice warn">Recuerda: esta reedicion rompe ${conflicts.conflicts.length} racha viva, incluyendo ramas que vienen de la fase anterior. Renuncias a <b>+${conflicts.total}</b> puntos potenciales si esa rama pasaba: ${conflicts.conflicts.map(c => `${esc(c.team?.name || c.team?.code || 'equipo')} (+${c.value})`).join(', ')}.</div>`
       : '';
     return `<div class="recovery-editor">
       <div class="notice info"><b>Reedicion de ${esc(clearLabel)}:</b> completa el arbol pendiente hasta el campeon. Las ramas vivas quedan por defecto; cambia solo donde quieras romper o recuperar una racha.</div>
@@ -1441,8 +1506,12 @@
         const by = detailByNode(STATE.bracket.detail);
         const node = by[nodeId];
         const draft = recoveryDraft(nodeId, t.dataset.code, ui.recoveryEdit);
-        const currentConflicts = recoveryConflictSummary(STATE.bracket.detail, ui.recoveryEdit.picks, ui.recoveryEdit.allowedIds);
-        const breaksLive = !!(node?.branchType && !node.resolved && node.activePick && t.dataset.code !== node.activePick);
+        const currentConflicts = recoveryConflictSummary(STATE.bracket.tree, STATE.bracket.detail, ui.recoveryEdit.picks, ui.recoveryEdit.allowedIds);
+        const cand = computeCandidatesWithReal(STATE.bracket.tree, ui.recoveryEdit.picks, STATE.bracket.detail, ui.recoveryEdit.allowedIds);
+        const valid = [cand[nodeId]?.a?.code, cand[nodeId]?.b?.code].filter(Boolean);
+        const plannedContinuations = [node?.activePick, node?.recoveryPick, node?.originalPick].filter(Boolean);
+        const breaksIncoming = incomingLiveBranches(STATE.bracket.tree, STATE.bracket.detail, nodeId, valid).some(br => plannedContinuations.includes(br.code) && br.code !== t.dataset.code);
+        const breaksLive = !!(node?.branchType && !node.resolved && node.activePick && t.dataset.code !== node.activePick) || breaksIncoming;
         if (breaksLive || draft.conflicts.total > currentConflicts.total) startRecoveryConfirm(nodeId, t.dataset.code, ui.recoveryEdit);
         else ui.recoveryEdit.picks = draft.picks;
         render();

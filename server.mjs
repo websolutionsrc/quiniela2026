@@ -390,6 +390,7 @@ function currentBracketPicks(pred) {
 function recoveryCandidatesFor(tree, r32Teams, picks, detail, forcedIds = []) {
   const forced = new Set(forcedIds);
   const byNode = Object.fromEntries((detail?.nodes || []).map(n => [n.nodeId, n]));
+  const knownReal = (m) => !!(m?.home?.code && m?.away?.code && !m.home.tbd && !m.away.tbd);
   const out = {};
   tree.r32.forEach(n => { out[n.id] = r32Teams[n.id] || { a: { label: n.a }, b: { label: n.b } }; });
   const winner = (id) => {
@@ -400,7 +401,7 @@ function recoveryCandidatesFor(tree, r32Teams, picks, detail, forcedIds = []) {
   };
   [...tree.r16, ...tree.qf, ...tree.sf, tree.final].forEach(n => {
     const match = byNode[n.id]?.match;
-    out[n.id] = forced.has(n.id) && match?.home && match?.away
+    out[n.id] = forced.has(n.id) && knownReal(match)
       ? { a: match.home, b: match.away }
       : { a: winner(n.childA), b: winner(n.childB) };
   });
