@@ -495,6 +495,21 @@
       });
     }
   }
+  function propagateRecoveryPicks(tree, picks, detail, allowedIds, fromNodeId) {
+    const start = Math.max(0, allowedIds.indexOf(fromNodeId));
+    const original = currentPickMapFromDetail(detail);
+    allowedIds.slice(start + 1).forEach(id => { delete picks[id]; });
+    for (let i = start + 1; i < allowedIds.length; i++) {
+      const id = allowedIds[i];
+      const cand = computeCandidatesWithReal(tree, picks, detail, allowedIds);
+      const valid = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
+      const previousPick = picks[allowedIds[i - 1]];
+      const originalPick = original[id];
+      if (previousPick && valid.includes(previousPick)) picks[id] = previousPick;
+      else if (originalPick && valid.includes(originalPick)) picks[id] = originalPick;
+    }
+    pruneRecoveryPicks(tree, picks, detail, allowedIds);
+  }
   function parentMap(tree) {
     const out = {};
     [...tree.r16, ...tree.qf, ...tree.sf, tree.final].forEach(n => {
@@ -851,9 +866,8 @@
     const allowedIds = recoveryPath(tree, nodeId);
     const picks = currentPickMapFromDetail(STATE.bracket.detail);
     if (pick) picks[nodeId] = pick;
-    allowedIds.slice(1).forEach(id => { delete picks[id]; });
     ui.recoveryEdit = { nodeId, allowedIds, picks };
-    pruneRecoveryPicks(tree, ui.recoveryEdit.picks, STATE.bracket.detail, allowedIds);
+    propagateRecoveryPicks(tree, ui.recoveryEdit.picks, STATE.bracket.detail, allowedIds, nodeId);
   }
   function renderRecoveryEditor() {
     const edit = ui.recoveryEdit;
@@ -1277,8 +1291,9 @@
         render();
       } else if (a === 'recovery-edit-pick') {
         if (!ui.recoveryEdit) return;
-        ui.recoveryEdit.picks[t.dataset.node] = t.dataset.code;
-        pruneRecoveryPicks(STATE.bracket.tree, ui.recoveryEdit.picks, STATE.bracket.detail, ui.recoveryEdit.allowedIds);
+        const nodeId = t.dataset.node;
+        ui.recoveryEdit.picks[nodeId] = t.dataset.code;
+        propagateRecoveryPicks(STATE.bracket.tree, ui.recoveryEdit.picks, STATE.bracket.detail, ui.recoveryEdit.allowedIds, nodeId);
         render();
       } else if (a === 'recovery-edit-cancel') {
         ui.recoveryEdit = null;
