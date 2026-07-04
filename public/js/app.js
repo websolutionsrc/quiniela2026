@@ -458,6 +458,8 @@
     const winner = (id) => {
       const c = cand[id], code = picks[id];
       if (!code || !c) return null;
+      const nd = by[id];
+      if (nd?.resolved && nd.actualWinner && code !== nd.actualWinner) return null;
       if (c.a && c.a.code === code) return c.a;
       if (c.b && c.b.code === code) return c.b;
       return null;
@@ -536,24 +538,81 @@
     });
     return teams.find(t => t.code === code) || { code, name: code };
   }
-  function incomingLiveBranches(tree, detail, nodeId, validCodes = null) {
+  function incomingLiveBranches(tree, detail, nodeId, validCodes = null, branchInfo = null) {
     const node = bracketNodesInOrder(tree).find(n => n.id === nodeId);
     if (!node?.childA) return [];
     const by = detailByNode(detail);
     const valid = validCodes ? new Set(validCodes) : null;
     const children = [by[node.childA], by[node.childB]].filter(Boolean);
+    const fromDraft = [node.childA, node.childB].map(id => branchInfo?.[id]).filter(Boolean).map(info => {
+      if (!info.code || (valid && !valid.has(info.code))) return null;
+      return {
+        code: info.code,
+        team: detailTeamByCode(detail, info.code),
+        type: info.type || 'original',
+        value: info.nextValue || (info.currentValue || bracketBaseV2()) + bracketBaseV2(),
+        nodeId: info.nodeId,
+        round: by[info.nodeId]?.roundName,
+      };
+    }).filter(Boolean);
+    if (fromDraft.length) return fromDraft;
     return children.map(ch => {
       const code = ch.hit ? ch.activePick : (ch.activePick && ch.branchType ? ch.activePick : null);
       if (!code || (valid && !valid.has(code))) return null;
+      const currentValue = ch.branchValue || bracketBaseV2();
+      const projectedValue = ch.hit
+        ? (ch.nextValue || currentValue + bracketBaseV2())
+        : (ch.branchType ? currentValue + bracketBaseV2() : currentValue);
       return {
         code,
         team: ch.activePickTeam || ch.actualWinnerTeam || ch.recoveryPickTeam || ch.originalPickTeam || detailTeamByCode(detail, code),
         type: ch.branchType || 'original',
-        value: ch.nextValue || ch.branchValue || bracketBaseV2(),
+        value: projectedValue,
         nodeId: ch.nodeId,
         round: ch.roundName,
       };
     }).filter(Boolean);
+  }
+  function draftBranchInfoMap(tree, detail, picks, allowedIds = []) {
+    const by = detailByNode(detail);
+    const cand = computeCandidatesWithReal(tree, picks || {}, detail, allowedIds);
+    const info = {};
+    const base = bracketBaseV2();
+    const validCodes = (id) => [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
+    [tree.r32, tree.r16, tree.qf, tree.sf, [tree.final]].forEach(nodes => nodes.forEach(n => {
+      const pick = picks?.[n.id];
+      if (!pick || !validCodes(n.id).includes(pick)) return;
+      const nd = by[n.id];
+      if (nd?.resolved) {
+        if (nd.actualWinner && pick !== nd.actualWinner) return;
+        const currentValue = nd.branchValue || Math.max((nd.nextValue || base + base) - base, base);
+        info[n.id] = { nodeId: n.id, code: pick, type: nd.branchType || 'original', currentValue, nextValue: nd.nextValue || currentValue + base };
+        return;
+      }
+      const incoming = n.childA ? [info[n.childA], info[n.childB]].find(x => x?.code === pick) : null;
+      let currentValue = null;
+      let type = 'original';
+      if (incoming) {
+        currentValue = incoming.nextValue;
+        type = incoming.type;
+      } else if (nd?.activePick === pick && nd.branchType) {
+        currentValue = nd.branchValue || base;
+        type = nd.branchType;
+      } else if (nd?.recoveryPick === pick && nd.branchType) {
+        currentValue = nd.branchValue || base;
+        type = 'recovered';
+      } else if (nd?.recoveryOpen) {
+        currentValue = base;
+        type = 'recovered';
+      } else if (nd?.revisionOpen && pick !== nd.activePick) {
+        currentValue = base;
+        type = 'recovered';
+      } else if (!n.childA) {
+        currentValue = base;
+      }
+      if (currentValue != null) info[n.id] = { nodeId: n.id, code: pick, type, currentValue, nextValue: currentValue + base };
+    }));
+    return info;
   }
   function defaultRecoveryPick(tree, detail, id, picks, allowedIds) {
     const by = detailByNode(detail);
@@ -622,6 +681,7 @@
     const by = detailByNode(detail);
     const conflicts = [];
     const seen = new Set();
+    const branchInfo = draftBranchInfoMap(tree, detail, picks, allowedIds);
     allowedIds.forEach(id => {
       const n = by[id], pick = picks[id];
       if (!n || !pick) return;
@@ -635,7 +695,7 @@
       const cand = computeCandidatesWithReal(tree, picks, detail, allowedIds);
       const valid = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
       const plannedContinuations = [n.activePick, n.recoveryPick, n.originalPick].filter(Boolean);
-      incomingLiveBranches(tree, detail, id, valid).forEach(br => {
+      incomingLiveBranches(tree, detail, id, valid, branchInfo).forEach(br => {
         if (!plannedContinuations.includes(br.code)) return;
         if (br.code === pick) return;
         const key = `${id}:${br.code}`;
@@ -669,20 +729,25 @@
     if (n.branchType) return `racha +${n.branchValue || bracketBaseV2()}`;
     return 'pendiente';
   }
-  function editTreeStatusText(n, pick, incoming = []) {
+  function editTreeStatusText(n, pick, incoming = [], currentInfo = null) {
     if (!n) return '';
     if (n.resolved) return n.hit ? `+${n.points || 0}` : '+0';
     if (!pick) return n.recoveryOpen ? 'elige ganador' : 'pendiente';
+    if (n.recoveryOpen) return `recuperada +${currentInfo?.currentValue || bracketBaseV2()} si pasa`;
+    if (n.revisionOpen && pick !== n.activePick) return `cambio +${currentInfo?.currentValue || bracketBaseV2()} si pasa`;
+    if (currentInfo?.code === pick) return `mantiene racha +${currentInfo.currentValue || bracketBaseV2()}`;
     if (pick === n.activePick && n.branchType) return `mantiene racha +${n.branchValue || bracketBaseV2()}`;
     const incomingBranch = incoming.find(br => br.code === pick);
     if (incomingBranch) return `mantiene racha +${incomingBranch.value || bracketBaseV2()}`;
     if (incoming.length && incoming.every(br => br.code !== pick)) return `cambia rama +${bracketBaseV2()} si pasa`;
-    if (n.recoveryOpen) return `recuperada +${bracketBaseV2()} si pasa`;
-    if (n.revisionOpen) return `cambio +${bracketBaseV2()} si pasa`;
     return `reedicion +${bracketBaseV2()} si pasa`;
   }
-  function editTieClass(n, pick, incoming = []) {
+  function editTieClass(n, pick, incoming = [], currentInfo = null) {
     if (!n) return '';
+    if (n.recoveryOpen) return pick && pick !== n.activePick ? 'recovery-open draft-change' : 'recovery-open';
+    if (n.revisionOpen) return pick && pick !== n.activePick ? 'revision-open draft-change' : 'revision-open';
+    if (currentInfo?.type === 'recovered') return 'recovered';
+    if (currentInfo?.type === 'original') return 'original';
     const incomingBranch = incoming.find(br => br.code === pick);
     if (incomingBranch?.type === 'recovered') return 'recovered';
     if (incomingBranch?.type === 'original') return 'original';
@@ -697,10 +762,17 @@
     if (!pick && incoming[0]?.type === 'original') return 'original';
     return '';
   }
-  function slotHtml(node, which, team, picks, interactive, actualSet, actionName = 'pick') {
+  function editSlotClass(n, team) {
+    if (!n || !team?.code) return '';
+    if (n.recoveryOpen) return 'action-required-option';
+    if (n.revisionOpen) return 'optional-action-option';
+    return '';
+  }
+  function slotHtml(node, which, team, picks, interactive, actualSet, actionName = 'pick', extraClass = '') {
     const code = team && team.code;
     const picked = code && picks[node.id] === code;
     const cls = ['slot'];
+    if (extraClass) cls.push(extraClass);
     if (picked) cls.push('pick');
     if (!code) cls.push('label');
     if (actualSet && code && actualSet.has(code)) cls.push(picked ? 'correct' : 'real-adv');
@@ -718,6 +790,8 @@
     const cand = (opts.detail && opts.allowedIds)
       ? computeCandidatesWithReal(tree, picks || {}, opts.detail, opts.allowedIds)
       : computeCandidates(tree, picks || {});
+    const editMode = opts.detail && actionName === 'recovery-edit-pick';
+    const branchInfo = editMode ? draftBranchInfoMap(tree, opts.detail, picks || {}, opts.allowedIds || []) : {};
     // Conjuntos reales que avanzaron (para resaltar aciertos cuando ya está enviado).
     const ar = b.actualReached || {};
     const setFor = { R32: new Set(ar.R16 || []), R16: new Set(ar.QF || []), QF: new Set(ar.SF || []), SF: new Set(ar.FINAL || []), FINAL: new Set(ar.CHAMP || []) };
@@ -736,17 +810,23 @@
           const nd = detailMap[n.id];
           const currentPick = (picks || {})[n.id];
           const validCodes = [c.a?.code, c.b?.code].filter(Boolean);
-          const incoming = opts.detail && actionName === 'recovery-edit-pick' ? incomingLiveBranches(tree, opts.detail, n.id, validCodes) : [];
-          const nodeInteractive = interactive && (!allowed || allowed.has(n.id));
-          const statusText = opts.detail && actionName === 'recovery-edit-pick'
-            ? editTreeStatusText(nd, currentPick, incoming)
+          const currentInfo = branchInfo[n.id] || null;
+          const incoming = editMode ? incomingLiveBranches(tree, opts.detail, n.id, validCodes, branchInfo) : [];
+          const editNeedsChoice = editMode ? (!currentInfo || nd?.recoveryOpen || nd?.revisionOpen) : false;
+          const nodeInteractive = editMode
+            ? interactive && (!allowed || allowed.has(n.id)) && editNeedsChoice
+            : interactive && (!allowed || allowed.has(n.id));
+          const statusText = editMode
+            ? editTreeStatusText(nd, currentPick, incoming, currentInfo)
             : currentTreeStatusText(nd);
           const status = opts.detail ? `<div class="tie-status">${esc(statusText)}</div>` : '';
-          const editClass = opts.detail && actionName === 'recovery-edit-pick' ? editTieClass(nd, currentPick, incoming) : '';
+          const editClass = editMode ? editTieClass(nd, currentPick, incoming, currentInfo) : '';
+          const slotClassA = editMode && nodeInteractive ? editSlotClass(nd, c.a) : '';
+          const slotClassB = editMode && nodeInteractive ? editSlotClass(nd, c.b) : '';
           return `<div class="tie ${interactive ? 'clickable' : ''} ${editClass} ${col.round === 'FINAL' ? 'final-tie' : ''}">
             ${status}
-            ${slotHtml(n, 'a', c.a, picks || {}, nodeInteractive, showActual ? setFor[col.round] : null, actionName)}
-            ${slotHtml(n, 'b', c.b, picks || {}, nodeInteractive, showActual ? setFor[col.round] : null, actionName)}
+            ${slotHtml(n, 'a', c.a, picks || {}, nodeInteractive, showActual ? setFor[col.round] : null, actionName, slotClassA)}
+            ${slotHtml(n, 'b', c.b, picks || {}, nodeInteractive, showActual ? setFor[col.round] : null, actionName, slotClassB)}
           </div>`;
         }).join('')}
       </div>`).join('');
@@ -904,7 +984,7 @@
   }
   function statusTeamsForNode(n, cand, detail) {
     if (detail?.match?.home && detail?.match?.away) return { a: detail.match.home, b: detail.match.away };
-    const predicted = detail?.activePickTeam || detail?.recoveryPickTeam || detail?.originalPickTeam || null;
+    const predicted = detail?.activePickTeam || detail?.recoveryPickTeam || null;
     const base = cand[n.id] || { a: null, b: null };
     if (!predicted) return base;
     if (base.a?.code === predicted.code || base.b?.code === predicted.code) return base;
@@ -920,6 +1000,8 @@
     const active = code && detail?.activePick === code;
     const actual = code && detail?.actualWinner === code;
     if (!code) cls.push('label');
+    if (detail?.recoveryOpen) cls.push('action-required-option');
+    if (detail?.revisionOpen) cls.push('optional-action-option');
     if (original || recovered) cls.push(recovered ? 'recovery-pick' : 'pick');
     if (detail?.resolved && actual) cls.push('actual-winner');
     if (detail?.hit && active && actual) cls.push('hit-pick');
@@ -950,7 +1032,7 @@
     const b = STATE.bracket, tree = b.tree;
     const nodes = bracketNodeDetailMap(detail);
     const picks = currentPickMapFromDetail(detail);
-    const cand = computeCandidates(tree, picks);
+    const cand = computeCandidatesWithReal(tree, picks, detail, []);
     const cols = [
       { head: '1/16', nodes: tree.r32 },
       { head: '8vos', nodes: tree.r16 },
@@ -966,7 +1048,7 @@
           const teams = statusTeamsForNode(node, cand, nd);
           const options = nd?.revisionOpen ? (nd.recoveryOptions || []).filter(t => t.code !== nd.activePick) : (nd?.recoveryOptions || []);
           const actions = (nd?.recoveryOpen || nd?.revisionOpen) && options.length
-            ? `<div class="tie-actions">${options.map(t => `<button class="btn sm" data-action="recovery-pick" data-node="${esc(nd.nodeId)}" data-code="${esc(t.code)}">${flagImg(t.flag, 'flag flag-sm')} ${esc(t.name)}</button>`).join('')}</div>`
+            ? `<div class="tie-actions">${options.map(t => `<button class="btn sm ${nd.recoveryOpen ? 'action-choice' : 'optional-choice'}" data-action="recovery-pick" data-node="${esc(nd.nodeId)}" data-code="${esc(t.code)}">${flagImg(t.flag, 'flag flag-sm')} ${esc(t.name)}</button>`).join('')}</div>`
             : '';
           return `<div class="tie status-tie ${branchClass(nd)} ${ui.branchDetailNode === node.id ? 'selected' : ''}" data-action="branch-detail" data-node="${esc(node.id)}">
             <div class="tie-status">${esc(tieStatusText(nd))}</div>
@@ -1026,9 +1108,10 @@
     const allowedIds = recoveryEditIds(tree, STATE.bracket.detail, nodeId);
     const picks = currentPickMapFromDetail(STATE.bracket.detail);
     if (pick) picks[nodeId] = pick;
-    ui.recoveryEdit = { nodeId, allowedIds, picks };
+    ui.recoveryEdit = { nodeId, allowedIds, picks, initialPicks: null };
     if (pick) propagateRecoveryPicks(tree, ui.recoveryEdit.picks, STATE.bracket.detail, allowedIds, nodeId);
     else fillRecoveryDefaults(tree, ui.recoveryEdit.picks, STATE.bracket.detail, allowedIds);
+    ui.recoveryEdit.initialPicks = { ...ui.recoveryEdit.picks };
   }
   function ensureRecoveryEdit(detail) {
     if (ui.recoveryEdit) return ui.recoveryEdit;
@@ -1079,7 +1162,7 @@
       ${renderBracketGrid(true, { picks: edit.picks, allowedIds: edit.allowedIds, action: 'recovery-edit-pick', detail })}
       <div class="sticky-submit"><span class="sub">${selectedCount}/${edit.allowedIds.length} cruces pendientes coherentes</span>
         <button class="btn ghost" data-action="recovery-edit-cancel">Cancelar</button>
-        <button class="btn ghost" data-action="recovery-edit-clear-round">Limpiar opciones de ${esc(clearLabel)}</button>
+        <button class="btn ghost" data-action="recovery-edit-clear-round">Restaurar inicio de ${esc(clearLabel)}</button>
         <button class="btn primary" data-action="recovery-edit-submit" ${complete ? '' : 'disabled'}>Enviar reedicion del arbol</button>
       </div>
     </div>`;
@@ -1497,7 +1580,7 @@
         if (!ui.recoveryConfirm) return;
         const { nodeId, pick, allowedIds, picks, mode } = ui.recoveryConfirm;
         ui.recoveryConfirm = null;
-        if (mode === 'edit') ui.recoveryEdit = { nodeId: ui.recoveryEdit?.nodeId || nodeId, allowedIds, picks };
+        if (mode === 'edit') ui.recoveryEdit = { nodeId: ui.recoveryEdit?.nodeId || nodeId, allowedIds, picks, initialPicks: ui.recoveryEdit?.initialPicks || { ...picks } };
         else startRecoveryEdit(nodeId, pick);
         render();
       } else if (a === 'recovery-edit-pick') {
@@ -1510,7 +1593,8 @@
         const cand = computeCandidatesWithReal(STATE.bracket.tree, ui.recoveryEdit.picks, STATE.bracket.detail, ui.recoveryEdit.allowedIds);
         const valid = [cand[nodeId]?.a?.code, cand[nodeId]?.b?.code].filter(Boolean);
         const plannedContinuations = [node?.activePick, node?.recoveryPick, node?.originalPick].filter(Boolean);
-        const breaksIncoming = incomingLiveBranches(STATE.bracket.tree, STATE.bracket.detail, nodeId, valid).some(br => plannedContinuations.includes(br.code) && br.code !== t.dataset.code);
+        const branchInfo = draftBranchInfoMap(STATE.bracket.tree, STATE.bracket.detail, ui.recoveryEdit.picks, ui.recoveryEdit.allowedIds);
+        const breaksIncoming = incomingLiveBranches(STATE.bracket.tree, STATE.bracket.detail, nodeId, valid, branchInfo).some(br => plannedContinuations.includes(br.code) && br.code !== t.dataset.code);
         const breaksLive = !!(node?.branchType && !node.resolved && node.activePick && t.dataset.code !== node.activePick) || breaksIncoming;
         if (breaksLive || draft.conflicts.total > currentConflicts.total) startRecoveryConfirm(nodeId, t.dataset.code, ui.recoveryEdit);
         else ui.recoveryEdit.picks = draft.picks;
@@ -1520,16 +1604,8 @@
         render();
       } else if (a === 'recovery-edit-clear-round') {
         if (!ui.recoveryEdit) return;
-        const tree = STATE.bracket.tree;
-        const detail = STATE.bracket.detail;
-        const by = detailByNode(detail);
-        const node = by[ui.recoveryEdit.nodeId];
-        const start = roundRank(node?.round);
-        ui.recoveryEdit.picks = currentPickMapFromDetail(detail);
-        ui.recoveryEdit.allowedIds.forEach(id => {
-          if (roundRank(by[id]?.round) >= start) delete ui.recoveryEdit.picks[id];
-        });
-        pruneRecoveryPicks(tree, ui.recoveryEdit.picks, detail, ui.recoveryEdit.allowedIds);
+        ui.recoveryEdit.picks = { ...(ui.recoveryEdit.initialPicks || currentPickMapFromDetail(STATE.bracket.detail)) };
+        fillRecoveryDefaults(STATE.bracket.tree, ui.recoveryEdit.picks, STATE.bracket.detail, ui.recoveryEdit.allowedIds);
         render();
       } else if (a === 'recovery-edit-submit') {
         try { await api('/bracket/recovery', { method: 'POST', body: JSON.stringify({ nodeId: ui.recoveryEdit.nodeId, picks: ui.recoveryEdit.picks }) }); ui.recoveryEdit = null; setNotice('Reedicion del arbol enviada.', 'ok'); await loadState(); }

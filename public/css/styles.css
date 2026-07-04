@@ -235,6 +235,10 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .slot.label { color: var(--muted); font-style: italic; }
 .slot.real-adv { box-shadow: inset 3px 0 0 var(--done); }
 .slot.correct { box-shadow: inset 3px 0 0 var(--primary); }
+.slot.action-required-option { background: rgba(255,209,102,.16); box-shadow: inset 4px 0 0 var(--accent); }
+.slot.optional-action-option { background: rgba(78,168,222,.16); box-shadow: inset 4px 0 0 var(--done); }
+.slot.action-required-option.pick { background: rgba(255,209,102,.24); color: #fff5c7; }
+.slot.optional-action-option.pick { background: rgba(78,168,222,.24); color: #e8f6ff; }
 .tie.final-tie { border-color: var(--accent); }
 .tie.original { border-color: var(--primary); background: rgba(0,184,148,.10); }
 .tie.recovered { border-color: var(--done); background: rgba(78,168,222,.12); }
@@ -268,6 +272,8 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .slot.recovery-pick { background: rgba(78,168,222,.16); font-weight: 700; }
 .slot .sname small { display: block; color: var(--muted); font-size: .62rem; font-weight: 600; line-height: 1.1; }
 .tie-actions { display: flex; flex-wrap: wrap; gap: .35rem; padding: .45rem .5rem; border-top: 1px dashed rgba(255,209,102,.35); }
+.tie-actions .action-choice { border-color: var(--accent); background: rgba(255,209,102,.16); color: var(--accent); }
+.tie-actions .optional-choice { border-color: var(--done); background: rgba(78,168,222,.16); color: #9bd8ff; }
 .segmented { display: inline-flex; gap: .25rem; padding: .25rem; border: 1px solid var(--line); border-radius: 999px; background: rgba(14,35,48,.65); margin: .4rem 0 .9rem; }
 .segmented button { border: 0; background: transparent; color: var(--muted); border-radius: 999px; padding: .45rem .8rem; font-weight: 800; cursor: pointer; }
 .segmented button.active { background: var(--primary); color: #031d18; }
