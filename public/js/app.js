@@ -68,7 +68,7 @@
 
   // ------------------------------------------------------- App shell -------
   function tabActionCount(tab) {
-    return (STATE.actions || []).filter(a => a.tab === tab && a.level === 'warn').length;
+    return (STATE.actions || []).filter(a => a.tab === tab && (a.level === 'warn' || a.badge)).length;
   }
   function renderActionAlerts() {
     const actions = STATE.actions || [];

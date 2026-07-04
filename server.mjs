@@ -195,6 +195,7 @@ function buildUserBracketDetail(username, totals) {
     closed: ev.closed,
     bestActive: ev.bestActive,
     actionRequired: ev.actionRequired,
+    optionalActions: ev.optionalActions,
     recoveryPending: ev.recoveryPending,
     branches: ev.branches.map(b => ({ ...b, team: wf(b.team) })),
     nodes,
@@ -479,8 +480,11 @@ function buildState(user) {
   const deadlineText = bettingDeadlineText(win);
   if (bracketOpen) actions.push({ tab: 'llave', level: 'warn', label: 'Llave pendiente', text: `Se acepta envio de llaves ${deadlineText}.` });
   const actionNodes = bracketDetail.nodes.filter(n => n.recoveryOpen);
+  const optionalNodes = bracketDetail.nodes.filter(n => n.revisionOpen);
   const actionDeadline = actionNodes.map(n => n.match?.utcDate).filter(Boolean).sort()[0];
+  const optionalDeadline = optionalNodes.map(n => n.match?.utcDate).filter(Boolean).sort()[0];
   if (bracketDetail.actionRequired) actions.push({ tab: 'llave', level: 'warn', label: 'Revisar llave', text: `${bracketDetail.actionRequired} accion${bracketDetail.actionRequired === 1 ? '' : 'es'} pendiente${bracketDetail.actionRequired === 1 ? '' : 's'} antes de ${madridShortDate(actionDeadline)}.` });
+  if (bracketDetail.optionalActions) actions.push({ tab: 'llave', level: 'info', badge: true, label: 'Reedicion opcional', text: `${bracketDetail.optionalActions} cambio${bracketDetail.optionalActions === 1 ? '' : 's'} opcional${bracketDetail.optionalActions === 1 ? '' : 'es'} disponible${bracketDetail.optionalActions === 1 ? '' : 's'} antes de ${madridShortDate(optionalDeadline)}.` });
   if (!bracketDetail.actionRequired && bracketDetail.recoveryPending) actions.push({ tab: 'llave', level: 'info', label: 'Ramas rotas', text: `${bracketDetail.recoveryPending} rama${bracketDetail.recoveryPending === 1 ? '' : 's'} rota${bracketDetail.recoveryPending === 1 ? '' : 's'}; la recuperacion se abrira cuando cierre la ronda.` });
   if (mvpOpen) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: `Se acepta envio de Bota de Oro ${deadlineText}.` });
   if (finalState.open) actions.push({ tab: 'final', level: 'warn', label: 'Final pendiente', text: 'Falta enviar la prediccion de la final.' });
