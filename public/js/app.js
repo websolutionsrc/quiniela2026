@@ -922,16 +922,16 @@
     const conflictText = c.conflicts.conflicts.length
       ? `<p class="sub">Rompes ${c.conflicts.conflicts.length} racha${c.conflicts.conflicts.length === 1 ? '' : 's'} viva${c.conflicts.conflicts.length === 1 ? '' : 's'} y renuncias a <b>+${c.conflicts.total}</b> puntos potenciales: ${c.conflicts.conflicts.map(x => `${esc(x.team?.name || x.team?.code || 'equipo')} (+${x.value})`).join(', ')}.</p>`
       : (node?.recoveryOpen ? `<p class="sub">Recuperas una rama rota. Si aciertas este cruce, suma <b>+${gain}</b> y la siguiente racha sube.</p>` : '<p class="sub">No rompes ninguna racha viva en este cambio.</p>');
-    return `<div class="recovery-editor">
-      <div class="notice warn">
-        <b>Confirmar cambio de seguimiento</b>
-        <p>Si aceptas, ${miniTeam(chosen)} pasa a ${esc(next)} en tu arbol pendiente y se propagara hacia el campeon. Si acierta este cruce, suma <b>+${gain}</b>.</p>
+    return `<div class="modal-backdrop" data-action="recovery-confirm-cancel">
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="recovery-confirm-title" data-modal-card>
+        <h3 id="recovery-confirm-title">Confirmar cambio de seguimiento</h3>
+        <p>Si aceptas, ${miniTeam(chosen)} pasa a ${esc(next)} en tu arbol pendiente y se propagara hacia el campeon.</p>
+        <p>Si acierta este cruce, suma <b>+${gain}</b>.</p>
         ${conflictText}
-      </div>
-      <div class="sticky-submit">
-        <span class="sub">Puedes volver atras antes de aplicar este cambio.</span>
-        <button class="btn ghost" data-action="recovery-confirm-cancel">Volver atras</button>
-        <button class="btn primary" data-action="recovery-confirm-accept">${c.mode === 'edit' ? 'Aceptar cambio' : 'Aceptar y editar arbol'}</button>
+        <div class="modal-actions">
+          <button class="btn ghost" data-action="recovery-confirm-cancel">Volver atras</button>
+          <button class="btn primary" data-action="recovery-confirm-accept">${c.mode === 'edit' ? 'Aceptar cambio' : 'Aceptar y editar arbol'}</button>
+        </div>
       </div>
     </div>`;
   }
@@ -981,8 +981,8 @@
       </div>`;
       const currentPicks = currentPickMapFromDetail(b.detail);
       const fullTree = `<h3 class="group-title">Tu arbol actual</h3>${renderBracketGrid(false, { picks: currentPicks, detail: b.detail })}`;
-      const trackingBody = renderRecoveryConfirm() || renderRecoveryEditor() || (renderBracketStatusGrid(b.detail, true) + renderSelectedBranchDetail(b.detail));
-      const tracking = `<h3 class="group-title">Seguimiento</h3>${trackingBody}`;
+      const trackingBody = renderRecoveryEditor() || (renderBracketStatusGrid(b.detail, true) + renderSelectedBranchDetail(b.detail));
+      const tracking = `<h3 class="group-title">Seguimiento</h3>${trackingBody}${renderRecoveryConfirm()}`;
       return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + actionNotice + switcher + (view === 'tracking' ? tracking : fullTree);
     }
     if (!b.window.open) {
@@ -1359,6 +1359,7 @@
         startRecoveryConfirm(t.dataset.node, t.dataset.code);
         render();
       } else if (a === 'recovery-confirm-cancel') {
+        if (t.classList.contains('modal-backdrop') && e.target !== t) return;
         ui.recoveryConfirm = null;
         render();
       } else if (a === 'recovery-confirm-accept') {
