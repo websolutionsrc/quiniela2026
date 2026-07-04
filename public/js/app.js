@@ -1103,10 +1103,13 @@
       </div>`;
     }
     if (!d || !d.submitted) return `<div class="detail-card"><h3>Llave</h3><p class="sub">Sin llave enviada.</p></div>`;
-    const rows = (d.nodes || []).filter(n => n.resolved || n.recoveryOpen || n.recoveryPending).slice(0, 8);
-    const body = rows.length
+    const publicVisible = Array.isArray(d.visibleRounds);
+    const rows = publicVisible ? (d.nodes || []) : (d.nodes || []).filter(n => n.resolved || n.recoveryOpen || n.recoveryPending).slice(0, 8);
+    const nextUnlock = publicVisible && d.nextUnlockAt ? `<p class="sub">La siguiente ronda se mostrara al empezar: ${fmt(d.nextUnlockAt)}.</p>` : '';
+    const bodyRows = rows.length
       ? rows.map(n => `<div class="detail-line ${n.hit ? 'ok' : ''}"><span>${esc(n.roundName)}</span>${branchNodeMainV2(n)}<b>${esc(branchLabel(n))}</b></div>`).join('')
       : `<p class="sub">${d.hasResult ? 'No tiene cruces acertados resueltos todavia.' : 'La llave aun no tiene resultados para comparar.'}</p>`;
+    const body = `${nextUnlock}${bodyRows}`;
     const tree = ui.playerTreeOpen ? renderBracketStatusGrid(d, true) + renderSelectedBranchDetail(d) : '';
     const action = d.actionRequired ? ` · requiere accion ${d.actionRequired}` : '';
     return `<div class="detail-card detail-wide"><h3>Llave</h3>
@@ -1619,7 +1622,15 @@
         fillRecoveryDefaults(STATE.bracket.tree, ui.recoveryEdit.picks, STATE.bracket.detail, ui.recoveryEdit.allowedIds);
         render();
       } else if (a === 'recovery-edit-submit') {
-        try { await api('/bracket/recovery', { method: 'POST', body: JSON.stringify({ nodeId: ui.recoveryEdit.nodeId, picks: ui.recoveryEdit.picks }) }); ui.recoveryEdit = null; setNotice('Reedicion del arbol enviada.', 'ok'); await loadState(); }
+        try {
+          await api('/bracket/recovery', { method: 'POST', body: JSON.stringify({ nodeId: ui.recoveryEdit.nodeId, picks: ui.recoveryEdit.picks }) });
+          ui.recoveryEdit = null;
+          ui.recoveryConfirm = null;
+          ui.branchDetailNode = null;
+          ui.bracketView = 'tree';
+          setNotice('Reedicion del arbol enviada.', 'ok');
+          await loadState();
+        }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'mvp-pick') {
         ui.mvpPick = t.dataset.player; render();

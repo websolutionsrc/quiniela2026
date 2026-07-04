@@ -158,6 +158,7 @@ const ADVANCED_TO = {
   SF: 'FINAL',
   FINAL: 'CHAMP',
 };
+const BRACKET_ROUNDS = ['R32', 'R16', 'QF', 'SF', 'FINAL'];
 function teamFromCode(code) {
   if (!code) return null;
   const all = Data.getData().matches.flatMap(m => [m.home, m.away]).filter(Boolean);
@@ -198,6 +199,40 @@ function buildUserBracketDetail(username, totals) {
     optionalActions: ev.optionalActions,
     recoveryPending: ev.recoveryPending,
     branches: ev.branches.map(b => ({ ...b, team: wf(b.team) })),
+    nodes,
+    picks: nodes,
+    correctPicks: nodes.filter(p => p.hit),
+  };
+}
+function firstKickoffForRound(round) {
+  const matches = Data.knockoutMatches()
+    .filter(m => m.phase === round && m.utcDate)
+    .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate));
+  return matches[0]?.utcDate || null;
+}
+function startedBracketRounds() {
+  return BRACKET_ROUNDS.filter(round => {
+    const kickoff = firstKickoffForRound(round);
+    return kickoff && Data.now() >= new Date(kickoff);
+  });
+}
+function nextBracketRoundKickoff() {
+  return BRACKET_ROUNDS
+    .map(firstKickoffForRound)
+    .filter(Boolean)
+    .map(x => new Date(x))
+    .filter(x => Data.now() < x)
+    .sort((a, b) => a - b)[0]?.toISOString() || null;
+}
+function publicUserBracketDetail(username, totals) {
+  const started = new Set(startedBracketRounds());
+  if (!started.size) return lockedBracketDetail(username, firstKickoffForRound('R32') || Data.bracketWindow().deadline);
+  const detail = buildUserBracketDetail(username, totals);
+  const nodes = detail.nodes.filter(n => started.has(n.round));
+  return {
+    ...detail,
+    visibleRounds: [...started],
+    nextUnlockAt: nextBracketRoundKickoff(),
     nodes,
     picks: nodes,
     correctPicks: nodes.filter(p => p.hit),
@@ -275,7 +310,7 @@ function buildUserGroupPredictions(username) {
   const mvpSummary = Score.userMvpTotals(username);
   const rankRow = Score.ranking().find(r => r.username === username);
   const win = Data.bracketWindow();
-  const showLockedPredictions = !!win.passedDeadline;
+  const showPublicPredictions = startedBracketRounds().length > 0;
   const matches = Data.groupMatches()
     .filter(Data.isFinished)
     .slice()
@@ -293,8 +328,8 @@ function buildUserGroupPredictions(username) {
       final: finalSummary,
       mvp: mvpSummary,
     },
-    bracketDetail: showLockedPredictions ? buildUserBracketDetail(username, bracketSummary) : lockedBracketDetail(username, win.deadline),
-    goldenBootDetail: showLockedPredictions ? buildUserGoldenBootDetail(username, mvpSummary) : lockedGoldenBootDetail(username, win.deadline),
+    bracketDetail: showPublicPredictions ? publicUserBracketDetail(username, bracketSummary) : lockedBracketDetail(username, win.deadline),
+    goldenBootDetail: showPublicPredictions ? buildUserGoldenBootDetail(username, mvpSummary) : lockedGoldenBootDetail(username, win.deadline),
     finalDetail: buildUserFinalDetail(username, finalSummary),
     matches,
   };
@@ -694,9 +729,15 @@ async function handleApi(req, res, pathname) {
     }
     pred.bracket.recoveries = pred.bracket.recoveries || {};
     const at = new Date().toISOString();
+    const detailByNode = Object.fromEntries(detail.nodes.map(n => [n.nodeId, n]));
     requiredIds.forEach(id => {
-      if (merged[id] && merged[id] !== pred.bracket.picks[id]) pred.bracket.recoveries[id] = { pick: merged[id], at, startedAt: nodeId };
-      else delete pred.bracket.recoveries[id];
+      const currentNode = detailByNode[id];
+      const isOpenNow = !!(currentNode?.recoveryOpen || currentNode?.revisionOpen);
+      if (merged[id] && (isOpenNow || merged[id] !== pred.bracket.picks[id])) {
+        pred.bracket.recoveries[id] = { pick: merged[id], at, startedAt: nodeId, reviewed: isOpenNow };
+      } else {
+        delete pred.bracket.recoveries[id];
+      }
     });
     saveDB();
     return sendJSON(res, 200, { ok: true });
