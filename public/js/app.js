@@ -621,6 +621,10 @@
     const valid = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
     if (!valid.length) return null;
     if (n?.activePick && valid.includes(n.activePick)) return n.activePick;
+    if (n?.revisionOpen && Array.isArray(n.projectedOverlap)) {
+      const keep = n.projectedOverlap.find(code => valid.includes(code));
+      if (keep) return keep;
+    }
     const childPick = activeChildPickForNode(tree, detail, id, valid);
     if (childPick) return childPick;
     if (n?.recoveryPick && valid.includes(n.recoveryPick)) return n.recoveryPick;
