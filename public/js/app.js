@@ -650,8 +650,8 @@
       const valid = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
       const previousPick = picks[path[i - 1]];
       const originalPick = original[id];
-      if (previousPick && valid.includes(previousPick)) picks[id] = previousPick;
-      else if (originalPick && valid.includes(originalPick)) picks[id] = originalPick;
+      if (originalPick && valid.includes(originalPick)) picks[id] = originalPick;
+      else if (previousPick && valid.includes(previousPick)) picks[id] = previousPick;
     }
     pruneRecoveryPicks(tree, picks, detail, allowedIds);
     fillRecoveryDefaults(tree, picks, detail, allowedIds);
@@ -762,10 +762,14 @@
     if (!pick && incoming[0]?.type === 'original') return 'original';
     return '';
   }
-  function editSlotClass(n, team) {
+  function sameCandidateSet(a, b) {
+    const codes = (x) => [x?.a?.code, x?.b?.code].filter(Boolean).sort().join('|');
+    return codes(a) === codes(b);
+  }
+  function editSlotClass(n, team, changedCandidates = false) {
     if (!n || !team?.code) return '';
     if (n.recoveryOpen) return 'action-required-option';
-    if (n.revisionOpen) return 'optional-action-option';
+    if (n.revisionOpen || changedCandidates) return 'optional-action-option';
     return '';
   }
   function slotHtml(node, which, team, picks, interactive, actualSet, actionName = 'pick', extraClass = '') {
@@ -792,6 +796,8 @@
       : computeCandidates(tree, picks || {});
     const editMode = opts.detail && actionName === 'recovery-edit-pick';
     const branchInfo = editMode ? draftBranchInfoMap(tree, opts.detail, picks || {}, opts.allowedIds || []) : {};
+    const initialEditPicks = editMode ? (ui.recoveryEdit?.initialPicks || currentPickMapFromDetail(opts.detail)) : null;
+    const initialCand = editMode ? computeCandidatesWithReal(tree, initialEditPicks || {}, opts.detail, opts.allowedIds || []) : {};
     // Conjuntos reales que avanzaron (para resaltar aciertos cuando ya está enviado).
     const ar = b.actualReached || {};
     const setFor = { R32: new Set(ar.R16 || []), R16: new Set(ar.QF || []), QF: new Set(ar.SF || []), SF: new Set(ar.FINAL || []), FINAL: new Set(ar.CHAMP || []) };
@@ -812,7 +818,8 @@
           const validCodes = [c.a?.code, c.b?.code].filter(Boolean);
           const currentInfo = branchInfo[n.id] || null;
           const incoming = editMode ? incomingLiveBranches(tree, opts.detail, n.id, validCodes, branchInfo) : [];
-          const editNeedsChoice = editMode ? (!currentInfo || nd?.recoveryOpen || nd?.revisionOpen) : false;
+          const changedCandidates = editMode && !sameCandidateSet(c, initialCand[n.id]);
+          const editNeedsChoice = editMode ? (!currentInfo || nd?.recoveryOpen || nd?.revisionOpen || changedCandidates) : false;
           const nodeInteractive = editMode
             ? interactive && (!allowed || allowed.has(n.id)) && editNeedsChoice
             : interactive && (!allowed || allowed.has(n.id));
@@ -821,8 +828,8 @@
             : currentTreeStatusText(nd);
           const status = opts.detail ? `<div class="tie-status">${esc(statusText)}</div>` : '';
           const editClass = editMode ? editTieClass(nd, currentPick, incoming, currentInfo) : '';
-          const slotClassA = editMode && nodeInteractive ? editSlotClass(nd, c.a) : '';
-          const slotClassB = editMode && nodeInteractive ? editSlotClass(nd, c.b) : '';
+          const slotClassA = editMode && nodeInteractive ? editSlotClass(nd, c.a, changedCandidates) : '';
+          const slotClassB = editMode && nodeInteractive ? editSlotClass(nd, c.b, changedCandidates) : '';
           return `<div class="tie ${interactive ? 'clickable' : ''} ${editClass} ${col.round === 'FINAL' ? 'final-tie' : ''}">
             ${status}
             ${slotHtml(n, 'a', c.a, picks || {}, nodeInteractive, showActual ? setFor[col.round] : null, actionName, slotClassA)}
