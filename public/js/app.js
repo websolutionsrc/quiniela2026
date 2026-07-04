@@ -31,7 +31,7 @@
   };
 
   let STATE = null, ME = null;
-  const ui = { tab: 'ranking', notice: null, bracketPicks: null, bracketView: 'tree', recoveryEdit: null, groupDraft: {}, adminUsers: null, testPhases: null, mvpPick: null, finalChamp: null, finalScore: {}, playerProfile: null, playerTreeOpen: false, branchDetailNode: null };
+  const ui = { tab: 'ranking', notice: null, bracketPicks: null, bracketView: 'tree', recoveryEdit: null, recoveryConfirm: null, groupDraft: {}, adminUsers: null, testPhases: null, mvpPick: null, finalChamp: null, finalScore: {}, playerProfile: null, playerTreeOpen: false, branchDetailNode: null };
 
   async function api(path, opts = {}) {
     const r = await fetch(APP_BASE + '/api' + path, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -557,13 +557,26 @@
     const conflicts = [];
     allowedIds.forEach(id => {
       const n = by[id], pick = picks[id];
-      if (!n || !pick || !n.originalPick || pick === n.originalPick) return;
-      const originalLive = n.branchType === 'original' && n.activePick === n.originalPick && !n.resolved;
-      if (!originalLive) return;
-      conflicts.push({ team: n.originalPickTeam, round: n.roundName, value: n.branchValue || bracketBaseV2() });
+      if (!n || !pick || !n.activePick || pick === n.activePick) return;
+      const activeLive = !!n.branchType && !n.resolved;
+      if (!activeLive) return;
+      conflicts.push({ team: n.activePickTeam, round: n.roundName, type: n.branchType, value: n.branchValue || bracketBaseV2() });
     });
     const total = conflicts.reduce((s, x) => s + x.value, 0);
     return { conflicts, total };
+  }
+  function recoveryDraft(nodeId, pick, edit = null) {
+    const tree = STATE.bracket.tree;
+    const detail = STATE.bracket.detail;
+    const allowedIds = edit?.allowedIds || recoveryEditIds(tree, detail, nodeId);
+    const picks = edit?.picks ? { ...edit.picks } : currentPickMapFromDetail(detail);
+    if (pick) picks[nodeId] = pick;
+    propagateRecoveryPicks(tree, picks, detail, allowedIds, nodeId);
+    return { nodeId, pick, allowedIds, picks, conflicts: recoveryConflictSummary(detail, picks, allowedIds) };
+  }
+  function startRecoveryConfirm(nodeId, pick, edit = null) {
+    if (!edit) ui.recoveryEdit = null;
+    ui.recoveryConfirm = { ...recoveryDraft(nodeId, pick, edit), mode: edit ? 'edit' : 'start' };
   }
   function currentTreeStatusText(n) {
     if (!n) return '';
@@ -818,7 +831,7 @@
   function renderBracketStatusGrid(detail, compact = false) {
     const b = STATE.bracket, tree = b.tree;
     const nodes = bracketNodeDetailMap(detail);
-    const picks = pickMapFromDetail(detail);
+    const picks = currentPickMapFromDetail(detail);
     const cand = computeCandidates(tree, picks);
     const cols = [
       { head: '1/16', nodes: tree.r32 },
@@ -898,16 +911,41 @@
     ui.recoveryEdit = { nodeId, allowedIds, picks };
     propagateRecoveryPicks(tree, ui.recoveryEdit.picks, STATE.bracket.detail, allowedIds, nodeId);
   }
+  function renderRecoveryConfirm() {
+    const c = ui.recoveryConfirm;
+    if (!c) return '';
+    const detail = STATE.bracket.detail;
+    const node = (detail?.nodes || []).find(n => n.nodeId === c.nodeId);
+    const chosen = (node?.recoveryOptions || []).find(t => t.code === c.pick) || c.conflicts.conflicts.find(x => x.team?.code === c.pick)?.team || { code: c.pick, name: c.pick };
+    const next = node?.advancesTo === 'CHAMP' ? 'campeon' : (node?.advancesTo || 'siguiente ronda');
+    const gain = node?.activePick === c.pick ? (node?.branchValue || bracketBaseV2()) : bracketBaseV2();
+    const conflictText = c.conflicts.conflicts.length
+      ? `<p class="sub">Rompes ${c.conflicts.conflicts.length} racha${c.conflicts.conflicts.length === 1 ? '' : 's'} viva${c.conflicts.conflicts.length === 1 ? '' : 's'} y renuncias a <b>+${c.conflicts.total}</b> puntos potenciales: ${c.conflicts.conflicts.map(x => `${esc(x.team?.name || x.team?.code || 'equipo')} (+${x.value})`).join(', ')}.</p>`
+      : (node?.recoveryOpen ? `<p class="sub">Recuperas una rama rota. Si aciertas este cruce, suma <b>+${gain}</b> y la siguiente racha sube.</p>` : '<p class="sub">No rompes ninguna racha viva en este cambio.</p>');
+    return `<div class="recovery-editor">
+      <div class="notice warn">
+        <b>Confirmar cambio de seguimiento</b>
+        <p>Si aceptas, ${miniTeam(chosen)} pasa a ${esc(next)} en tu arbol pendiente y se propagara hacia el campeon. Si acierta este cruce, suma <b>+${gain}</b>.</p>
+        ${conflictText}
+      </div>
+      <div class="sticky-submit">
+        <span class="sub">Puedes volver atras antes de aplicar este cambio.</span>
+        <button class="btn ghost" data-action="recovery-confirm-cancel">Volver atras</button>
+        <button class="btn primary" data-action="recovery-confirm-accept">${c.mode === 'edit' ? 'Aceptar cambio' : 'Aceptar y editar arbol'}</button>
+      </div>
+    </div>`;
+  }
   function renderRecoveryEditor() {
     const edit = ui.recoveryEdit;
     if (!edit) return '';
     const detail = STATE.bracket.detail;
     const node = (detail?.nodes || []).find(n => n.nodeId === edit.nodeId);
+    const clearLabel = node?.roundName || 'esta ronda';
     const selectedCount = validRecoveryPickCount(STATE.bracket.tree, edit.picks, detail, edit.allowedIds);
     const complete = selectedCount === edit.allowedIds.length;
     const conflicts = recoveryConflictSummary(detail, edit.picks, edit.allowedIds);
     const conflictNotice = conflicts.conflicts.length
-      ? `<div class="notice warn">Recuerda: esta reedicion rompe ${conflicts.conflicts.length} racha original viva y mueve la prediccion al equipo nuevo. Renuncias a <b>+${conflicts.total}</b> puntos potenciales si esa rama original pasaba: ${conflicts.conflicts.map(c => `${esc(c.team?.name || c.team?.code || 'equipo')} (+${c.value})`).join(', ')}.</div>`
+      ? `<div class="notice warn">Recuerda: esta reedicion rompe ${conflicts.conflicts.length} racha viva y mueve la prediccion al equipo nuevo. Renuncias a <b>+${conflicts.total}</b> puntos potenciales si esa rama pasaba: ${conflicts.conflicts.map(c => `${esc(c.team?.name || c.team?.code || 'equipo')} (+${c.value})`).join(', ')}.</div>`
       : '';
     return `<div class="recovery-editor">
       <div class="notice info"><b>Modo seguimiento:</b> reconstruye el arbol pendiente desde ${esc(node?.roundName || edit.nodeId)}. Las ramas vivas conservan tu prediccion original; toca solo lo que quieras recuperar o cambiar y completa todo antes de enviar.</div>
@@ -915,6 +953,7 @@
       ${renderBracketGrid(true, { picks: edit.picks, allowedIds: edit.allowedIds, action: 'recovery-edit-pick', detail })}
       <div class="sticky-submit"><span class="sub">${selectedCount}/${edit.allowedIds.length} cruces pendientes coherentes</span>
         <button class="btn ghost" data-action="recovery-edit-cancel">Cancelar</button>
+        <button class="btn ghost" data-action="recovery-edit-clear-round">Limpiar opciones de ${esc(clearLabel)}</button>
         <button class="btn primary" data-action="recovery-edit-submit" ${complete ? '' : 'disabled'}>Enviar reedicion del arbol</button>
       </div>
     </div>`;
@@ -942,7 +981,8 @@
       </div>`;
       const currentPicks = currentPickMapFromDetail(b.detail);
       const fullTree = `<h3 class="group-title">Tu arbol actual</h3>${renderBracketGrid(false, { picks: currentPicks, detail: b.detail })}`;
-      const tracking = `<h3 class="group-title">Seguimiento</h3>${renderRecoveryEditor() || (renderBracketStatusGrid(b.detail, true) + renderSelectedBranchDetail(b.detail))}`;
+      const trackingBody = renderRecoveryConfirm() || renderRecoveryEditor() || (renderBracketStatusGrid(b.detail, true) + renderSelectedBranchDetail(b.detail));
+      const tracking = `<h3 class="group-title">Seguimiento</h3>${trackingBody}`;
       return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + actionNotice + switcher + (view === 'tracking' ? tracking : fullTree);
     }
     if (!b.window.open) {
@@ -1309,23 +1349,51 @@
         render();
       } else if (a === 'bracket-view') {
         ui.bracketView = t.dataset.view || 'tree';
-        if (ui.bracketView !== 'tracking') ui.recoveryEdit = null;
+        if (ui.bracketView !== 'tracking') { ui.recoveryEdit = null; ui.recoveryConfirm = null; }
         render();
       } else if (a === 'bracket-submit') {
         try { await api('/bracket', { method: 'POST', body: JSON.stringify({ picks: ui.bracketPicks }) }); ui.bracketPicks = null; setNotice('✓ Llave enviada.', 'ok'); await loadState(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'recovery-pick') {
         ui.bracketView = 'tracking';
-        startRecoveryEdit(t.dataset.node, t.dataset.code);
+        startRecoveryConfirm(t.dataset.node, t.dataset.code);
+        render();
+      } else if (a === 'recovery-confirm-cancel') {
+        ui.recoveryConfirm = null;
+        render();
+      } else if (a === 'recovery-confirm-accept') {
+        if (!ui.recoveryConfirm) return;
+        const { nodeId, pick, allowedIds, picks, mode } = ui.recoveryConfirm;
+        ui.recoveryConfirm = null;
+        if (mode === 'edit') ui.recoveryEdit = { nodeId: ui.recoveryEdit?.nodeId || nodeId, allowedIds, picks };
+        else startRecoveryEdit(nodeId, pick);
         render();
       } else if (a === 'recovery-edit-pick') {
         if (!ui.recoveryEdit) return;
         const nodeId = t.dataset.node;
-        ui.recoveryEdit.picks[nodeId] = t.dataset.code;
-        propagateRecoveryPicks(STATE.bracket.tree, ui.recoveryEdit.picks, STATE.bracket.detail, ui.recoveryEdit.allowedIds, nodeId);
+        const by = detailByNode(STATE.bracket.detail);
+        const node = by[nodeId];
+        const draft = recoveryDraft(nodeId, t.dataset.code, ui.recoveryEdit);
+        const currentConflicts = recoveryConflictSummary(STATE.bracket.detail, ui.recoveryEdit.picks, ui.recoveryEdit.allowedIds);
+        const breaksLive = !!(node?.branchType && !node.resolved && node.activePick && t.dataset.code !== node.activePick);
+        if (breaksLive || draft.conflicts.total > currentConflicts.total) startRecoveryConfirm(nodeId, t.dataset.code, ui.recoveryEdit);
+        else ui.recoveryEdit.picks = draft.picks;
         render();
       } else if (a === 'recovery-edit-cancel') {
         ui.recoveryEdit = null;
+        render();
+      } else if (a === 'recovery-edit-clear-round') {
+        if (!ui.recoveryEdit) return;
+        const tree = STATE.bracket.tree;
+        const detail = STATE.bracket.detail;
+        const by = detailByNode(detail);
+        const node = by[ui.recoveryEdit.nodeId];
+        const start = roundRank(node?.round);
+        ui.recoveryEdit.picks = currentPickMapFromDetail(detail);
+        ui.recoveryEdit.allowedIds.forEach(id => {
+          if (roundRank(by[id]?.round) >= start) delete ui.recoveryEdit.picks[id];
+        });
+        pruneRecoveryPicks(tree, ui.recoveryEdit.picks, detail, ui.recoveryEdit.allowedIds);
         render();
       } else if (a === 'recovery-edit-submit') {
         try { await api('/bracket/recovery', { method: 'POST', body: JSON.stringify({ nodeId: ui.recoveryEdit.nodeId, picks: ui.recoveryEdit.picks }) }); ui.recoveryEdit = null; setNotice('Reedicion del arbol enviada.', 'ok'); await loadState(); }
