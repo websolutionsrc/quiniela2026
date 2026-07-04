@@ -495,15 +495,36 @@
       });
     }
   }
+  function bracketNodesInOrder(tree) {
+    return [...tree.r32, ...tree.r16, ...tree.qf, ...tree.sf, tree.final];
+  }
+  function roundRank(round) {
+    return { R32: 0, R16: 1, QF: 2, SF: 3, FINAL: 4 }[round] ?? 0;
+  }
+  function recoveryEditIds(tree, detail, fromNodeId) {
+    const by = detailByNode(detail);
+    const from = by[fromNodeId];
+    const startRank = roundRank(from?.round);
+    const ids = bracketNodesInOrder(tree)
+      .filter(n => {
+        const nd = by[n.id];
+        if (!nd || nd.resolved) return false;
+        return roundRank(n.round) >= startRank;
+      })
+      .map(n => n.id);
+    return ids.length ? ids : recoveryPath(tree, fromNodeId);
+  }
   function propagateRecoveryPicks(tree, picks, detail, allowedIds, fromNodeId) {
-    const start = Math.max(0, allowedIds.indexOf(fromNodeId));
+    const allowed = new Set(allowedIds || []);
+    const path = recoveryPath(tree, fromNodeId).filter(id => allowed.has(id));
+    const start = 0;
     const original = currentPickMapFromDetail(detail);
-    allowedIds.slice(start + 1).forEach(id => { delete picks[id]; });
-    for (let i = start + 1; i < allowedIds.length; i++) {
-      const id = allowedIds[i];
+    path.slice(start + 1).forEach(id => { delete picks[id]; });
+    for (let i = start + 1; i < path.length; i++) {
+      const id = path[i];
       const cand = computeCandidatesWithReal(tree, picks, detail, allowedIds);
       const valid = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
-      const previousPick = picks[allowedIds[i - 1]];
+      const previousPick = picks[path[i - 1]];
       const originalPick = original[id];
       if (previousPick && valid.includes(previousPick)) picks[id] = previousPick;
       else if (originalPick && valid.includes(originalPick)) picks[id] = originalPick;
@@ -739,6 +760,14 @@
     });
     return out;
   }
+  function validRecoveryPickCount(tree, picks, detail, ids) {
+    const cand = computeCandidatesWithReal(tree, picks, detail, ids);
+    return ids.filter(id => {
+      const pick = picks[id];
+      const valid = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
+      return pick && valid.includes(pick);
+    }).length;
+  }
   function bracketNodeDetailMap(d) {
     return Object.fromEntries((d?.nodes || []).map(n => [n.nodeId, n]));
   }
@@ -863,7 +892,7 @@
   }
   function startRecoveryEdit(nodeId, pick) {
     const tree = STATE.bracket.tree;
-    const allowedIds = recoveryPath(tree, nodeId);
+    const allowedIds = recoveryEditIds(tree, STATE.bracket.detail, nodeId);
     const picks = currentPickMapFromDetail(STATE.bracket.detail);
     if (pick) picks[nodeId] = pick;
     ui.recoveryEdit = { nodeId, allowedIds, picks };
@@ -874,19 +903,19 @@
     if (!edit) return '';
     const detail = STATE.bracket.detail;
     const node = (detail?.nodes || []).find(n => n.nodeId === edit.nodeId);
-    const selectedCount = edit.allowedIds.filter(id => edit.picks[id]).length;
+    const selectedCount = validRecoveryPickCount(STATE.bracket.tree, edit.picks, detail, edit.allowedIds);
     const complete = selectedCount === edit.allowedIds.length;
     const conflicts = recoveryConflictSummary(detail, edit.picks, edit.allowedIds);
     const conflictNotice = conflicts.conflicts.length
-      ? `<div class="notice warn">Esta reedicion rompe ${conflicts.conflicts.length} rama${conflicts.conflicts.length === 1 ? '' : 's'} original${conflicts.conflicts.length === 1 ? '' : 'es'} viva${conflicts.conflicts.length === 1 ? '' : 's'} y renuncias a <b>+${conflicts.total}</b> puntos potenciales: ${conflicts.conflicts.map(c => `${esc(c.team?.name || c.team?.code || 'equipo')} (+${c.value})`).join(', ')}.</div>`
+      ? `<div class="notice warn">Recuerda: esta reedicion rompe ${conflicts.conflicts.length} racha original viva y mueve la prediccion al equipo nuevo. Renuncias a <b>+${conflicts.total}</b> puntos potenciales si esa rama original pasaba: ${conflicts.conflicts.map(c => `${esc(c.team?.name || c.team?.code || 'equipo')} (+${c.value})`).join(', ')}.</div>`
       : '';
     return `<div class="recovery-editor">
-      <div class="notice info"><b>Modo reedicion:</b> ajusta la propagacion desde ${esc(node?.roundName || edit.nodeId)} hasta la final. Los cruces anteriores quedan bloqueados.</div>
+      <div class="notice info"><b>Modo seguimiento:</b> reconstruye el arbol pendiente desde ${esc(node?.roundName || edit.nodeId)}. Las ramas vivas conservan tu prediccion original; toca solo lo que quieras recuperar o cambiar y completa todo antes de enviar.</div>
       ${conflictNotice}
       ${renderBracketGrid(true, { picks: edit.picks, allowedIds: edit.allowedIds, action: 'recovery-edit-pick', detail })}
-      <div class="sticky-submit"><span class="sub">${selectedCount}/${edit.allowedIds.length} cruces de esta rama elegidos</span>
+      <div class="sticky-submit"><span class="sub">${selectedCount}/${edit.allowedIds.length} cruces pendientes coherentes</span>
         <button class="btn ghost" data-action="recovery-edit-cancel">Cancelar</button>
-        <button class="btn primary" data-action="recovery-edit-submit" ${complete ? '' : 'disabled'}>Enviar reedicion de rama</button>
+        <button class="btn primary" data-action="recovery-edit-submit" ${complete ? '' : 'disabled'}>Enviar reedicion del arbol</button>
       </div>
     </div>`;
   }
@@ -1299,7 +1328,7 @@
         ui.recoveryEdit = null;
         render();
       } else if (a === 'recovery-edit-submit') {
-        try { await api('/bracket/recovery', { method: 'POST', body: JSON.stringify({ nodeId: ui.recoveryEdit.nodeId, picks: ui.recoveryEdit.picks }) }); ui.recoveryEdit = null; setNotice('Reedicion de rama enviada.', 'ok'); await loadState(); }
+        try { await api('/bracket/recovery', { method: 'POST', body: JSON.stringify({ nodeId: ui.recoveryEdit.nodeId, picks: ui.recoveryEdit.picks }) }); ui.recoveryEdit = null; setNotice('Reedicion del arbol enviada.', 'ok'); await loadState(); }
         catch (err) { setNotice(err.message, 'err'); render(); }
       } else if (a === 'mvp-pick') {
         ui.mvpPick = t.dataset.player; render();

@@ -345,6 +345,14 @@ function bracketParentMap(tree) {
   return out;
 }
 
+function bracketNodesInOrder(tree) {
+  return [...tree.r32, ...tree.r16, ...tree.qf, ...tree.sf, tree.final];
+}
+
+function roundRank(round) {
+  return { R32: 0, R16: 1, QF: 2, SF: 3, FINAL: 4 }[round] ?? 0;
+}
+
 function bracketPathToFinal(tree, nodeId) {
   const parents = bracketParentMap(tree);
   const path = [];
@@ -354,6 +362,20 @@ function bracketPathToFinal(tree, nodeId) {
     id = parents[id];
   }
   return path;
+}
+
+function recoveryEditNodeIds(tree, detail, fromNodeId) {
+  const byNode = Object.fromEntries((detail?.nodes || []).map(n => [n.nodeId, n]));
+  const from = byNode[fromNodeId];
+  const startRank = roundRank(from?.round);
+  const ids = bracketNodesInOrder(tree)
+    .filter(n => {
+      const nd = byNode[n.id];
+      if (!nd || nd.resolved) return false;
+      return roundRank(n.round) >= startRank;
+    })
+    .map(n => n.id);
+  return ids.length ? ids : bracketPathToFinal(tree, fromNodeId);
 }
 
 function currentBracketPicks(pred) {
@@ -457,9 +479,6 @@ function buildState(user) {
   const actionDeadline = actionNodes.map(n => n.match?.utcDate).filter(Boolean).sort()[0];
   if (bracketDetail.actionRequired) actions.push({ tab: 'llave', level: 'warn', label: 'Revisar llave', text: `${bracketDetail.actionRequired} accion${bracketDetail.actionRequired === 1 ? '' : 'es'} pendiente${bracketDetail.actionRequired === 1 ? '' : 's'} antes de ${madridShortDate(actionDeadline)}.` });
   if (!bracketDetail.actionRequired && bracketDetail.recoveryPending) actions.push({ tab: 'llave', level: 'info', label: 'Ramas rotas', text: `${bracketDetail.recoveryPending} rama${bracketDetail.recoveryPending === 1 ? '' : 's'} rota${bracketDetail.recoveryPending === 1 ? '' : 's'}; la recuperacion se abrira cuando cierre la ronda.` });
-  const revisions = bracketDetail.nodes.filter(n => n.revisionOpen).length;
-  const revisionDeadline = bracketDetail.nodes.filter(n => n.revisionOpen).map(n => n.match?.utcDate).filter(Boolean).sort()[0];
-  if (revisions) actions.push({ tab: 'llave', level: 'info', label: 'Cambios disponibles', text: `${revisions} cambio${revisions === 1 ? '' : 's'} opcional${revisions === 1 ? '' : 'es'} antes de ${madridShortDate(revisionDeadline)}.` });
   if (mvpOpen) actions.push({ tab: 'mvp', level: 'warn', label: 'Bota de Oro pendiente', text: `Se acepta envio de Bota de Oro ${deadlineText}.` });
   if (finalState.open) actions.push({ tab: 'final', level: 'warn', label: 'Final pendiente', text: 'Falta enviar la prediccion de la final.' });
 
@@ -648,27 +667,30 @@ async function handleApi(req, res, pathname) {
     if (!pred.bracket?.submitted) return sendJSON(res, 403, { error: 'Primero debes haber enviado tu llave inicial.' });
     const nodeId = String(b.nodeId || '');
     const tree = buildTree();
-    const path = bracketPathToFinal(tree, nodeId);
     const submittedPicks = b.picks && typeof b.picks === 'object' ? b.picks : { [nodeId]: String(b.pick || '') };
     const detail = buildUserBracketDetail(user.username, Score.userBracketTotals(user.username));
     const node = detail.nodes.find(n => n.nodeId === nodeId);
     if (!node || !(node.recoveryOpen || node.revisionOpen)) return sendJSON(res, 403, { error: 'Este cruce no permite recuperacion o cambio ahora mismo.' });
+    const requiredIds = recoveryEditNodeIds(tree, detail, nodeId);
     const merged = currentBracketPicks(pred);
-    path.forEach(id => {
+    requiredIds.forEach(id => {
       if (submittedPicks[id]) merged[id] = String(submittedPicks[id]);
       else delete merged[id];
     });
     const r32Teams = Data.resolveR32Teams();
-    const cand = recoveryCandidatesFor(tree, r32Teams, merged, detail, path);
-    for (const id of path) {
+    const cand = recoveryCandidatesFor(tree, r32Teams, merged, detail, requiredIds);
+    for (const id of requiredIds) {
       const pick = merged[id];
-      if (!pick) return sendJSON(res, 400, { error: 'La reedicion esta incompleta: propaga la rama hasta la final.' });
+      if (!pick) return sendJSON(res, 400, { error: 'La reedicion esta incompleta: completa el arbol pendiente antes de enviar.' });
       const validPick = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean).includes(pick);
       if (!validPick) return sendJSON(res, 400, { error: 'La reedicion no es coherente con el arbol.' });
     }
     pred.bracket.recoveries = pred.bracket.recoveries || {};
     const at = new Date().toISOString();
-    path.forEach(id => { pred.bracket.recoveries[id] = { pick: merged[id], at, startedAt: nodeId }; });
+    requiredIds.forEach(id => {
+      if (merged[id] && merged[id] !== pred.bracket.picks[id]) pred.bracket.recoveries[id] = { pick: merged[id], at, startedAt: nodeId };
+      else delete pred.bracket.recoveries[id];
+    });
     saveDB();
     return sendJSON(res, 200, { ok: true });
   }
