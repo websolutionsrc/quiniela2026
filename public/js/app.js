@@ -501,6 +501,12 @@
   function roundRank(round) {
     return { R32: 0, R16: 1, QF: 2, SF: 3, FINAL: 4 }[round] ?? 0;
   }
+  function roundShort(round) {
+    return { R32: '1/16', R16: '8vos', QF: '4tos', SF: 'Semifinales', FINAL: 'Final' }[round] || round;
+  }
+  function openRecoveryNodes(detail) {
+    return (detail?.nodes || []).filter(n => n.recoveryOpen || n.revisionOpen);
+  }
   function recoveryEditIds(tree, detail, fromNodeId) {
     const by = detailByNode(detail);
     const from = by[fromNodeId];
@@ -513,6 +519,40 @@
       })
       .map(n => n.id);
     return ids.length ? ids : recoveryPath(tree, fromNodeId);
+  }
+  function activeChildPickForNode(tree, detail, nodeId, valid) {
+    const node = bracketNodesInOrder(tree).find(n => n.id === nodeId);
+    if (!node?.childA) return null;
+    const by = detailByNode(detail);
+    const children = [by[node.childA], by[node.childB]].filter(Boolean);
+    const live = children
+      .map(ch => ch.hit ? ch.activePick : (ch.activePick && ch.branchType ? ch.activePick : null))
+      .filter(code => code && valid.includes(code));
+    return live.length === 1 ? live[0] : null;
+  }
+  function defaultRecoveryPick(tree, detail, id, picks, allowedIds) {
+    const by = detailByNode(detail);
+    const n = by[id];
+    const cand = computeCandidatesWithReal(tree, picks, detail, allowedIds);
+    const valid = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
+    if (!valid.length) return null;
+    if (n?.activePick && valid.includes(n.activePick)) return n.activePick;
+    const childPick = activeChildPickForNode(tree, detail, id, valid);
+    if (childPick) return childPick;
+    if (n?.recoveryPick && valid.includes(n.recoveryPick)) return n.recoveryPick;
+    if (n?.originalPick && valid.includes(n.originalPick)) return n.originalPick;
+    return null;
+  }
+  function fillRecoveryDefaults(tree, picks, detail, allowedIds) {
+    allowedIds.forEach(id => {
+      const cand = computeCandidatesWithReal(tree, picks, detail, allowedIds);
+      const valid = [cand[id]?.a?.code, cand[id]?.b?.code].filter(Boolean);
+      if (picks[id] && valid.includes(picks[id])) return;
+      delete picks[id];
+      const fallback = defaultRecoveryPick(tree, detail, id, picks, allowedIds);
+      if (fallback) picks[id] = fallback;
+    });
+    pruneRecoveryPicks(tree, picks, detail, allowedIds);
   }
   function propagateRecoveryPicks(tree, picks, detail, allowedIds, fromNodeId) {
     const allowed = new Set(allowedIds || []);
@@ -530,6 +570,7 @@
       else if (originalPick && valid.includes(originalPick)) picks[id] = originalPick;
     }
     pruneRecoveryPicks(tree, picks, detail, allowedIds);
+    fillRecoveryDefaults(tree, picks, detail, allowedIds);
   }
   function parentMap(tree) {
     const out = {};
@@ -587,6 +628,15 @@
     if (n.branchType) return `racha +${n.branchValue || bracketBaseV2()}`;
     return 'pendiente';
   }
+  function editTreeStatusText(n, pick) {
+    if (!n) return '';
+    if (n.resolved) return n.hit ? `+${n.points || 0}` : '+0';
+    if (!pick) return n.recoveryOpen ? 'elige ganador' : 'pendiente';
+    if (pick === n.activePick && n.branchType) return `mantiene racha +${n.branchValue || bracketBaseV2()}`;
+    if (n.recoveryOpen) return `recuperada +${bracketBaseV2()} si pasa`;
+    if (n.revisionOpen) return `cambio +${bracketBaseV2()} si pasa`;
+    return `reedicion +${bracketBaseV2()} si pasa`;
+  }
   function slotHtml(node, which, team, picks, interactive, actualSet, actionName = 'pick') {
     const code = team && team.code;
     const picked = code && picks[node.id] === code;
@@ -613,9 +663,9 @@
     const setFor = { R32: new Set(ar.R16 || []), R16: new Set(ar.QF || []), QF: new Set(ar.SF || []), SF: new Set(ar.FINAL || []), FINAL: new Set(ar.CHAMP || []) };
     const cols = [
       { head: '1/16', nodes: tree.r32, round: 'R32' },
-      { head: 'Octavos', nodes: tree.r16, round: 'R16' },
-      { head: 'Cuartos', nodes: tree.qf, round: 'QF' },
-      { head: 'Semis', nodes: tree.sf, round: 'SF' },
+      { head: '8vos', nodes: tree.r16, round: 'R16' },
+      { head: '4tos', nodes: tree.qf, round: 'QF' },
+      { head: 'Semifinales', nodes: tree.sf, round: 'SF' },
       { head: 'Final', nodes: [tree.final], round: 'FINAL' },
     ];
     const showActual = b.submitted;
@@ -624,7 +674,10 @@
         ${col.nodes.map(n => {
           const c = cand[n.id];
           const nodeInteractive = interactive && (!allowed || allowed.has(n.id));
-          const status = opts.detail ? `<div class="tie-status">${esc(currentTreeStatusText(detailMap[n.id]))}</div>` : '';
+          const statusText = opts.detail && actionName === 'recovery-edit-pick'
+            ? editTreeStatusText(detailMap[n.id], (picks || {})[n.id])
+            : currentTreeStatusText(detailMap[n.id]);
+          const status = opts.detail ? `<div class="tie-status">${esc(statusText)}</div>` : '';
           return `<div class="tie ${interactive ? 'clickable' : ''} ${col.round === 'FINAL' ? 'final-tie' : ''}">
             ${status}
             ${slotHtml(n, 'a', c.a, picks || {}, nodeInteractive, showActual ? setFor[col.round] : null, actionName)}
@@ -835,9 +888,9 @@
     const cand = computeCandidates(tree, picks);
     const cols = [
       { head: '1/16', nodes: tree.r32 },
-      { head: 'Octavos', nodes: tree.r16 },
-      { head: 'Cuartos', nodes: tree.qf },
-      { head: 'Semis', nodes: tree.sf },
+      { head: '8vos', nodes: tree.r16 },
+      { head: '4tos', nodes: tree.qf },
+      { head: 'Semifinales', nodes: tree.sf },
       { head: 'Final', nodes: [tree.final] },
     ];
     const title = compact ? '' : '<h3 class="group-title">Arbol de llaves</h3>';
@@ -909,7 +962,15 @@
     const picks = currentPickMapFromDetail(STATE.bracket.detail);
     if (pick) picks[nodeId] = pick;
     ui.recoveryEdit = { nodeId, allowedIds, picks };
-    propagateRecoveryPicks(tree, ui.recoveryEdit.picks, STATE.bracket.detail, allowedIds, nodeId);
+    if (pick) propagateRecoveryPicks(tree, ui.recoveryEdit.picks, STATE.bracket.detail, allowedIds, nodeId);
+    else fillRecoveryDefaults(tree, ui.recoveryEdit.picks, STATE.bracket.detail, allowedIds);
+  }
+  function ensureRecoveryEdit(detail) {
+    if (ui.recoveryEdit) return ui.recoveryEdit;
+    const first = openRecoveryNodes(detail)[0];
+    if (!first) return null;
+    startRecoveryEdit(first.nodeId, null);
+    return ui.recoveryEdit;
   }
   function renderRecoveryConfirm() {
     const c = ui.recoveryConfirm;
@@ -917,7 +978,7 @@
     const detail = STATE.bracket.detail;
     const node = (detail?.nodes || []).find(n => n.nodeId === c.nodeId);
     const chosen = (node?.recoveryOptions || []).find(t => t.code === c.pick) || c.conflicts.conflicts.find(x => x.team?.code === c.pick)?.team || { code: c.pick, name: c.pick };
-    const next = node?.advancesTo === 'CHAMP' ? 'campeon' : (node?.advancesTo || 'siguiente ronda');
+    const next = node?.advancesTo === 'CHAMP' ? 'campeon' : roundShort(node?.advancesTo || '');
     const gain = node?.activePick === c.pick ? (node?.branchValue || bracketBaseV2()) : bracketBaseV2();
     const conflictText = c.conflicts.conflicts.length
       ? `<p class="sub">Rompes ${c.conflicts.conflicts.length} racha${c.conflicts.conflicts.length === 1 ? '' : 's'} viva${c.conflicts.conflicts.length === 1 ? '' : 's'} y renuncias a <b>+${c.conflicts.total}</b> puntos potenciales: ${c.conflicts.conflicts.map(x => `${esc(x.team?.name || x.team?.code || 'equipo')} (+${x.value})`).join(', ')}.</p>`
@@ -948,7 +1009,7 @@
       ? `<div class="notice warn">Recuerda: esta reedicion rompe ${conflicts.conflicts.length} racha viva y mueve la prediccion al equipo nuevo. Renuncias a <b>+${conflicts.total}</b> puntos potenciales si esa rama pasaba: ${conflicts.conflicts.map(c => `${esc(c.team?.name || c.team?.code || 'equipo')} (+${c.value})`).join(', ')}.</div>`
       : '';
     return `<div class="recovery-editor">
-      <div class="notice info"><b>Modo seguimiento:</b> reconstruye el arbol pendiente desde ${esc(node?.roundName || edit.nodeId)}. Las ramas vivas conservan tu prediccion original; toca solo lo que quieras recuperar o cambiar y completa todo antes de enviar.</div>
+      <div class="notice info"><b>Reedicion de ${esc(clearLabel)}:</b> completa el arbol pendiente hasta el campeon. Las ramas vivas quedan por defecto; cambia solo donde quieras romper o recuperar una racha.</div>
       ${conflictNotice}
       ${renderBracketGrid(true, { picks: edit.picks, allowedIds: edit.allowedIds, action: 'recovery-edit-pick', detail })}
       <div class="sticky-submit"><span class="sub">${selectedCount}/${edit.allowedIds.length} cruces pendientes coherentes</span>
@@ -969,20 +1030,25 @@
     if (b.submitted) {
       const actionCount = b.detail?.actionRequired || 0;
       const pendingCount = b.detail?.recoveryPending || 0;
+      const editCount = openRecoveryNodes(b.detail).length;
       const actionNotice = actionCount
-        ? `<button class="notice warn action-jump" data-action="bracket-view" data-view="tracking">Requiere accion: tienes ${actionCount} cruce${actionCount === 1 ? '' : 's'} pendiente${actionCount === 1 ? '' : 's'}. Revisar en Seguimiento.</button>`
-        : (pendingCount
+        ? `<button class="notice warn action-jump" data-action="bracket-view" data-view="tracking">Requiere accion: tienes ${actionCount} cruce${actionCount === 1 ? '' : 's'} pendiente${actionCount === 1 ? '' : 's'}. Abrir Reedicion.</button>`
+        : (editCount
+          ? `<button class="notice info action-jump" data-action="bracket-view" data-view="tracking">Reedicion disponible: revisa ${editCount} cruce${editCount === 1 ? '' : 's'} antes de enviar el arbol pendiente.</button>`
+          : (pendingCount
           ? `<div class="notice info">${pendingCount} rama${pendingCount === 1 ? '' : 's'} rota${pendingCount === 1 ? '' : 's'}. La recuperacion se abrira cuando cierre la ronda completa.</div>`
-          : `<div class="notice ok">Sin acciones pendientes ahora mismo.</div>`);
+          : `<div class="notice ok">Sin acciones pendientes ahora mismo.</div>`));
       const view = ui.bracketView || 'tree';
       const switcher = `<div class="segmented">
         <button class="${view === 'tree' ? 'active' : ''}" data-action="bracket-view" data-view="tree">Tu arbol actual</button>
-        <button class="${view === 'tracking' ? 'active' : ''}" data-action="bracket-view" data-view="tracking">Seguimiento</button>
+        <button class="${view === 'tracking' ? 'active' : ''}" data-action="bracket-view" data-view="tracking">Reedicion</button>
       </div>`;
       const currentPicks = currentPickMapFromDetail(b.detail);
       const fullTree = `<h3 class="group-title">Tu arbol actual</h3>${renderBracketGrid(false, { picks: currentPicks, detail: b.detail })}`;
+      if (view === 'tracking') ensureRecoveryEdit(b.detail);
       const trackingBody = renderRecoveryEditor() || (renderBracketStatusGrid(b.detail, true) + renderSelectedBranchDetail(b.detail));
-      const tracking = `<h3 class="group-title">Seguimiento</h3>${trackingBody}${renderRecoveryConfirm()}`;
+      const trackingTitle = ui.recoveryEdit ? 'Reedicion del arbol' : 'Arbol de seguimiento';
+      const tracking = `<h3 class="group-title">${trackingTitle}</h3>${trackingBody}${renderRecoveryConfirm()}`;
       return submittedHead + `<div class="notice ok">Enviaste tu llave el ${fmt(b.submittedAt)}. No se puede cambiar.</div>` + rulesBracket() + actionNotice + switcher + (view === 'tracking' ? tracking : fullTree);
     }
     if (!b.window.open) {

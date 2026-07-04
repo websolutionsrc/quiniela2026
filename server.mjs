@@ -146,8 +146,8 @@ function publicUserGroupMatch(m, picks) {
 }
 const ROUND_LABELS = {
   R32: '1/16',
-  R16: 'Octavos',
-  QF: 'Cuartos',
+  R16: '8vos',
+  QF: '4tos',
   SF: 'Semifinales',
   FINAL: 'Final',
 };
