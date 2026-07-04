@@ -47,7 +47,7 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .notice { padding: .6rem .8rem; border-radius: 9px; margin: .2rem 0 .8rem; font-size: .9rem; }
 .notice.err { background: rgba(239,71,111,.15); border: 1px solid var(--danger); color: #ffd3df; }
 .notice.ok { background: rgba(0,184,148,.15); border: 1px solid var(--primary); color: #b6f5e6; }
-.notice.info { background: rgba(78,168,222,.13); border: 1px solid var(--done); }
+.notice.info { background: rgba(78,168,222,.13); border: 1px solid var(--done); color: #d9f1ff; }
 .notice.warn { background: rgba(255,209,102,.13); border: 1px solid var(--accent); color: #ffe9b8; }
 
 /* Top bar + nav */
@@ -73,12 +73,12 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .section-head h2 { margin: 0 0 .2rem; }
 .section-head p { color: var(--muted); font-size: .88rem; margin: 0; }
 .action-alerts { display: grid; gap: .45rem; margin: .2rem 0 .9rem; }
-.action-alert { text-align: left; border: 1px solid var(--done); background: rgba(78,168,222,.13); color: var(--text);
+.action-alert { text-align: left; border: 1px solid var(--done); background: rgba(78,168,222,.13); color: #d9f1ff;
   border-radius: 10px; padding: .55rem .75rem; cursor: pointer; display: grid; gap: .1rem; }
-.action-alert.warn { border-color: var(--accent); background: rgba(255,209,102,.13); }
+.action-alert.warn { border-color: var(--accent); background: rgba(255,209,102,.13); color: #ffe9b8; }
 .action-alert b { color: var(--accent); }
 .action-alert.info b { color: #9bd8ff; }
-.action-alert span { color: var(--muted); font-size: .82rem; }
+.action-alert span { color: inherit; opacity: .82; font-size: .82rem; }
 
 /* Ranking */
 .ranking { width: 100%; border-collapse: collapse; border-radius: 12px; overflow: hidden; }
@@ -278,6 +278,9 @@ form input:focus { outline: 2px solid var(--primary); border-color: var(--primar
 .segmented button { border: 0; background: transparent; color: var(--muted); border-radius: 999px; padding: .45rem .8rem; font-weight: 800; cursor: pointer; }
 .segmented button.active { background: var(--primary); color: #031d18; }
 .action-jump { width: 100%; text-align: left; cursor: pointer; }
+.action-jump.notice.info { color: #d9f1ff; }
+.action-jump.notice.warn { color: #ffe9b8; }
+.action-jump.notice.ok { color: #b6f5e6; }
 .recovery-editor { margin-top: .6rem; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 1rem;
   background: rgba(4, 18, 28, .72); backdrop-filter: blur(3px); }
