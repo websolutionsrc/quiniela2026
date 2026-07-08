@@ -459,7 +459,9 @@
       const c = cand[id], code = picks[id];
       if (!code || !c) return null;
       const nd = by[id];
-      if (nd?.resolved && nd.actualWinner && code !== nd.actualWinner) return null;
+      if (nd?.resolved && nd.actualWinner) {
+        return [c.a, c.b].find(t => t?.code === nd.actualWinner) || detailTeamByCode(detail, nd.actualWinner);
+      }
       if (c.a && c.a.code === code) return c.a;
       if (c.b && c.b.code === code) return c.b;
       return null;

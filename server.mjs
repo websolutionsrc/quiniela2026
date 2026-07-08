@@ -469,7 +469,9 @@ function recoveryCandidatesFor(tree, r32Teams, picks, detail, forcedIds = []) {
     const code = picks[id];
     if (!code || !c) return null;
     const nd = byNode[id];
-    if (nd?.resolved && nd.actualWinner && code !== nd.actualWinner) return null;
+    if (nd?.resolved && nd.actualWinner) {
+      return [c.a, c.b].find(t => t?.code === nd.actualWinner) || nd.actualWinnerTeam || teamFromCode(nd.actualWinner);
+    }
     return [c.a, c.b].find(t => t?.code === code) || null;
   };
   [...tree.r16, ...tree.qf, ...tree.sf, tree.final].forEach(n => {
