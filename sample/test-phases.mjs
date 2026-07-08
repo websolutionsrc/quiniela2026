@@ -15,6 +15,10 @@ export const TEST_PHASES = [
   { id: 'sf_open', name: 'Semifinales abiertas', description: 'Cuartos resueltos y semifinales disponibles para validar top4 y ramas vivas.' },
   { id: 'final_open', name: 'Final abierta', description: 'Finalistas conocidos y prediccion de final disponible.' },
   { id: 'tournament_finished', name: 'Torneo terminado', description: 'Final terminada para validar puntuaciones finales.' },
+  { id: 'real_qf_open', name: 'Real + 4tos', description: 'Parte de datos reales actuales y simula lo necesario para abrir cuartos.' },
+  { id: 'real_sf_open', name: 'Real + Semis', description: 'Parte de datos reales actuales y simula cuartos para abrir semifinales.' },
+  { id: 'real_final_open', name: 'Real + Final', description: 'Parte de datos reales actuales y simula hasta dejar finalistas definidos.' },
+  { id: 'real_finished', name: 'Real + terminado', description: 'Parte de datos reales actuales y simula el cierre completo del torneo.' },
 ];
 
 const groupScores = [
@@ -128,8 +132,181 @@ function knockoutForPhase(id) {
   return { matches, teamByCode: teamIndex() };
 }
 
-export function buildTestPhase(id) {
+const PHASE_ORDER = ['R32', 'R16', 'QF', 'SF', 'FINAL'];
+const PHASE_DATES = {
+  R16: '2026-07-05T18:00:00Z',
+  QF: '2026-07-10T18:00:00Z',
+  SF: '2026-07-15T18:00:00Z',
+  FINAL: '2026-07-19T18:00:00Z',
+};
+
+function knownTeam(t) {
+  return !!(t && t.code && !t.tbd && t.code !== 'TBD');
+}
+
+function matchTeamsKnown(m) {
+  return knownTeam(m?.home) && knownTeam(m?.away);
+}
+
+function finishedMatch(m) {
+  return !!(m && m.status === 'FINISHED' && m.score && m.score.home != null && m.score.away != null);
+}
+
+function winnerCode(m) {
+  if (!m) return null;
+  if (m.winner) return m.winner;
+  if (!m.score || m.score.home == null || m.score.away == null) return null;
+  if (m.score.home > m.score.away) return m.home?.code || null;
+  if (m.score.away > m.score.home) return m.away?.code || null;
+  return null;
+}
+
+function teamByCodeFrom(matches) {
+  const out = {};
+  matches.forEach(m => [m.home, m.away].forEach(t => {
+    if (knownTeam(t)) out[t.code] = t;
+  }));
+  return out;
+}
+
+function winnerTeam(m, teams) {
+  const code = winnerCode(m);
+  if (!code) return null;
+  return [m.home, m.away].find(t => t?.code === code) || teams[code] || { code, name: code };
+}
+
+function phaseMatches(matches, phase) {
+  return matches
+    .filter(m => m.phase === phase && matchTeamsKnown(m))
+    .slice()
+    .sort((a, b) => new Date(a.utcDate) - new Date(b.utcDate) || String(a.id).localeCompare(String(b.id)));
+}
+
+function finishKnockoutMatch(m, index = 0) {
+  if (finishedMatch(m)) {
+    const inferred = winnerCode(m);
+    return inferred && !m.winner ? { ...m, winner: inferred } : m;
+  }
+  const homeWins = index % 2 === 0;
+  return {
+    ...m,
+    status: 'FINISHED',
+    score: homeWins ? FT(2, 1) : FT(1, 2),
+    winner: homeWins ? m.home.code : m.away.code,
+  };
+}
+
+function removePhases(matches, phases) {
+  const blocked = new Set(phases);
+  return matches.filter(m => !blocked.has(m.phase));
+}
+
+function makeFutureDate(baseIso, index) {
+  return new Date(new Date(baseIso).getTime() + index * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function buildPhaseFromPrevious(matches, prevPhase, phase, status) {
+  const teams = teamByCodeFrom(matches);
+  const prev = phaseMatches(matches, prevPhase).map((m, i) => finishKnockoutMatch(m, i));
+  const winners = prev.map(m => winnerTeam(m, teams)).filter(Boolean);
+  const out = [];
+  for (let i = 0; i < winners.length; i += 2) {
+    const home = winners[i], away = winners[i + 1];
+    if (!knownTeam(home) || !knownTeam(away)) continue;
+    const timed = {
+      id: `test-real-${phase.toLowerCase()}-${(i / 2) + 1}`,
+      phase,
+      group: null,
+      matchday: null,
+      utcDate: makeFutureDate(PHASE_DATES[phase], i / 2),
+      status,
+      home,
+      away,
+      score: null,
+      winner: null,
+    };
+    out.push(status === 'FINISHED' ? finishKnockoutMatch(timed, i / 2) : timed);
+  }
+  return out;
+}
+
+function ensureFinishedPhase(matches, phase) {
+  const existing = phaseMatches(matches, phase);
+  if (!existing.length) return matches;
+  return [...removePhases(matches, [phase]), ...existing.map(finishKnockoutMatch)];
+}
+
+function ensurePhaseOpen(matches, phase) {
+  const index = PHASE_ORDER.indexOf(phase);
+  const prevPhase = PHASE_ORDER[index - 1];
+  if (!prevPhase) return matches;
+  const generated = buildPhaseFromPrevious(matches, prevPhase, phase, 'TIMED');
+  return [...removePhases(matches, PHASE_ORDER.slice(index)), ...generated];
+}
+
+function ensureFutureFinished(matches, phase) {
+  const index = PHASE_ORDER.indexOf(phase);
+  const prevPhase = PHASE_ORDER[index - 1];
+  if (!prevPhase) return matches;
+  const generated = buildPhaseFromPrevious(matches, prevPhase, phase, 'FINISHED');
+  return [...removePhases(matches, [phase]), ...generated];
+}
+
+function realBase(baseData) {
+  if (baseData && !baseData.testMode && Array.isArray(baseData.matches) && baseData.matches.length) return clone(baseData);
+  return meta('bracket_open', '2026-06-27T12:00:00Z', finishedGroups(), {
+    bracketDemo: clone(SAMPLE.bracketDemo),
+    mvpCandidates: clone(testMvpCandidates),
+    mvpCandidatesLocked: true,
+    mvpCandidatesAt: '2026-06-27T12:00:00Z',
+    mvpCandidatesSource: 'test',
+  });
+}
+
+function realPlusFuture(id, baseData) {
+  const base = realBase(baseData);
+  let matches = clone(base.matches || []);
+  if (phaseMatches(matches, 'R32').length < 16) {
+    matches = [...removePhases(matches, ['R32', 'R16', 'QF', 'SF', 'FINAL']), ...r32FinishedMatches()];
+  }
+  const targetById = {
+    real_qf_open: 'QF',
+    real_sf_open: 'SF',
+    real_final_open: 'FINAL',
+    real_finished: 'DONE',
+  };
+  const target = targetById[id];
+  const until = target === 'DONE' ? 'FINAL' : target;
+  const targetIndex = PHASE_ORDER.indexOf(until);
+  PHASE_ORDER.slice(0, targetIndex).forEach(phase => {
+    matches = ensureFinishedPhase(matches, phase);
+    const next = PHASE_ORDER[PHASE_ORDER.indexOf(phase) + 1];
+    if (next && !phaseMatches(matches, next).length) matches = [...matches, ...buildPhaseFromPrevious(matches, phase, next, 'FINISHED')];
+  });
+  matches = target === 'DONE' ? ensureFutureFinished(matches, 'FINAL') : ensurePhaseOpen(matches, target);
+  const phase = TEST_PHASES.find(x => x.id === id);
+  const nowByPhase = {
+    real_qf_open: '2026-07-09T12:00:00Z',
+    real_sf_open: '2026-07-14T12:00:00Z',
+    real_final_open: '2026-07-18T12:00:00Z',
+    real_finished: '2026-07-20T12:00:00Z',
+  };
+  return {
+    ...base,
+    source: `modo-prueba: ${phase.name}`,
+    testMode: true,
+    testPhase: id,
+    testPhaseName: phase.name,
+    testNow: nowByPhase[id],
+    fetchedAt: new Date().toISOString(),
+    matches,
+  };
+}
+
+export function buildTestPhase(id, baseData = null) {
   if (!TEST_PHASES.some(x => x.id === id)) throw new Error('Fase de prueba no válida.');
+
+  if (id.startsWith('real_')) return realPlusFuture(id, baseData);
 
   if (id === 'groups_open') {
     return meta(id, '2026-06-13T16:00:00Z', clone(SAMPLE.matches));

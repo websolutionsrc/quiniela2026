@@ -865,7 +865,7 @@ async function handleApi(req, res, pathname) {
     if (pathname === '/api/admin/test-phase' && method === 'POST') {
       const b = await readBody(req);
       try {
-        const payload = buildTestPhase(String(b.phaseId || ''));
+        const payload = buildTestPhase(String(b.phaseId || ''), Data.getData());
         writeResults(payload);
         return sendJSON(res, 200, { ok: true, phase: { id: payload.testPhase, name: payload.testPhaseName } });
       } catch (e) { return sendJSON(res, 400, { error: e.message }); }

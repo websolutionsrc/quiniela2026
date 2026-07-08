@@ -1174,13 +1174,13 @@
       ? `<div class="notice warn">Recuerda: esta reedicion rompe ${conflicts.conflicts.length} racha viva, incluyendo ramas que vienen de la fase anterior. Renuncias a <b>+${conflicts.total}</b> puntos potenciales si esa rama pasaba: ${conflicts.conflicts.map(c => `${esc(c.team?.name || c.team?.code || 'equipo')} (+${c.value})`).join(', ')}.</div>`
       : '';
     return `<div class="recovery-editor">
-      <div class="notice info"><b>Reedicion de ${esc(clearLabel)}:</b> completa el arbol pendiente hasta el campeon. Las ramas vivas quedan por defecto; cambia solo donde quieras romper o recuperar una racha.</div>
+      <div class="notice info"><b>Seguimiento de ${esc(clearLabel)}:</b> revisa el arbol pendiente hasta el campeon. Las ramas vivas quedan por defecto; puedes enviarlo aunque mantengas todo igual para dejar evidencia.</div>
       ${conflictNotice}
       ${renderBracketGrid(true, { picks: edit.picks, allowedIds: edit.allowedIds, action: 'recovery-edit-pick', detail })}
       <div class="sticky-submit"><span class="sub">${selectedCount}/${edit.allowedIds.length} cruces pendientes coherentes</span>
         <button class="btn ghost" data-action="recovery-edit-cancel">Cancelar</button>
         <button class="btn ghost" data-action="recovery-edit-clear-round">Restaurar inicio de ${esc(clearLabel)}</button>
-        <button class="btn primary" data-action="recovery-edit-submit" ${complete ? '' : 'disabled'}>Enviar reedicion del arbol</button>
+        <button class="btn primary" data-action="recovery-edit-submit" ${complete ? '' : 'disabled'}>Enviar seguimiento del arbol</button>
       </div>
     </div>`;
   }
@@ -1195,7 +1195,7 @@
     const older = history.slice(0, -1).reverse();
     const latestLabel = latest.type === 'initial'
       ? `Enviaste tu llave de ${esc(latest.phaseName || '1/16')}`
-      : `Enviaste tu llave de ${esc(latest.phaseName || 'esta fase')}`;
+      : `Enviaste seguimiento de ${esc(latest.phaseName || 'esta fase')}`;
     const latestMeta = latest.type === 'reedit'
       ? ` · ${latest.changed || 0} cambios, ${latest.reviewed || 0} revisados`
       : '';
@@ -1204,7 +1204,7 @@
     const rows = older.map(item => {
       const label = item.type === 'initial'
         ? `Llave de ${esc(item.phaseName || '1/16')}`
-        : `Llave de ${esc(item.phaseName || 'fase')}`;
+        : `Seguimiento de ${esc(item.phaseName || 'fase')}`;
       const meta = item.type === 'reedit' ? ` · ${item.changed || 0} cambios` : '';
       return `<div class="detail-line"><span>${label}</span><b>${fmt(item.at)}${meta}</b></div>`;
     }).join('');
