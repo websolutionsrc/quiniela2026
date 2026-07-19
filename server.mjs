@@ -275,7 +275,7 @@ function publicUserBracketDetail(username, totals) {
 }
 function playerById(playerId) {
   if (!playerId) return null;
-  const p = Data.mvpCandidates().find(x => x.id === playerId);
+  const p = [...Data.mvpCandidates(), ...Data.mvpLiveScorers()].find(x => x.id === playerId);
   return p ? { ...p, flag: flagUrlFromCode(p.code) } : { id: playerId, name: playerId };
 }
 function buildUserGoldenBootDetail(username, totals) {
